@@ -222,15 +222,7 @@ fn main() {
 
     //****************
 
-    let mut nodes = Vec::with_capacity(points.len());
-    for i in 0 .. points.len() / ND
-    {
-        nodes.push(Node{position: [points[ND*i+0], points[ND*i+1], points[ND*i+2]]});
-    }
-
-    let node_buffer = glium::VertexBuffer::new(&display, &nodes).unwrap();
-
-    // This may not handle NaN correctly
+    // Get min/max of scalar.  This may not handle NaN correctly
     let mut smin = data[0];
     let mut smax = data[0];
     for i in 1 .. data.len()
@@ -238,13 +230,6 @@ fn main() {
         if data[i] < smin { smin = data[i]; }
         if data[i] > smax { smax = data[i]; }
     }
-
-    let mut scalar = Vec::with_capacity(data.len());
-    for i in 0 .. data.len()
-    {
-        scalar.push(Scalar{tex_coord: ((data[i] - smin) / (smax - smin)) as f32 });
-    }
-    let mut sca_buffer = glium::VertexBuffer::new(&display, &scalar).unwrap();
 
     // Capacity could be set ahead of time for tris with an extra pass over cell types to count
     // triangles
@@ -261,10 +246,25 @@ fn main() {
     //println!("tris = {:?}", tris);
 
     // TODO: push other cell types to other buffers.  Draw them with separate calls to
-    // target.draw(), share the same vertex and texture buffers
+    // target.draw().  Since vertices are duplicated per cell, there need to be parallel vertex and
+    // scalar arrays too
 
-    let tris_buffer = glium::IndexBuffer::new(&display,
-        glium::index::PrimitiveType::TrianglesList, &tris).unwrap();
+    let mut nodes = Vec::with_capacity(tris.len() * ND);
+    let mut scalar = Vec::with_capacity(tris.len());
+    for i in 0 .. tris.len()
+    {
+        nodes.push(Node{position:
+            [
+                points[ND*tris[i] as usize + 0],
+                points[ND*tris[i] as usize + 1],
+                points[ND*tris[i] as usize + 2]
+            ]});
+
+        scalar.push(Scalar{tex_coord: ((data[tris[i] as usize] - smin) / (smax - smin)) as f32 });
+    }
+
+    let node_buffer = glium::VertexBuffer::new(&display, &nodes).unwrap();
+    let mut sca_buffer = glium::VertexBuffer::new(&display, &scalar).unwrap();
 
     // TODO: free vtk object and other objects here if possible
 
@@ -453,8 +453,9 @@ fn main() {
 
         };
 
-        target.draw((&node_buffer, &sca_buffer), &tris_buffer, &program, &uniforms,
-                    &Default::default()).unwrap();
+        target.draw((&node_buffer, &sca_buffer),
+            glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList),
+            &program, &uniforms, &Default::default()).unwrap();
 
         target.finish().unwrap();
     });
