@@ -1,11 +1,6 @@
 
 //==============================================================================
 
-//use std::cmp;
-//use std::io::Cursor;
-
-//****************
-
 #[macro_use]
 extern crate glium;
 
@@ -28,13 +23,12 @@ const ND: usize = 3;
 
 fn main() {
     println!("skillet:  Starting main()");
-
-    #[allow(unused_imports)]
+    
     use glium::{glutin, Surface};
 
     let event_loop = glutin::event_loop::EventLoop::new();
     let wb = glutin::window::WindowBuilder::new();
-    let cb = glutin::ContextBuilder::new();
+    let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
     let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
     //=========================================================
@@ -81,7 +75,7 @@ fn main() {
 
     let texture = glium::texture::SrgbTexture1d::new(&display, image).unwrap();
 
-    #[derive(Copy, Clone)]
+    #[derive(Copy, Clone, Debug)]
     struct Node {
         position: [f32; ND]
     }
@@ -94,6 +88,12 @@ fn main() {
         tex_coord: f32,
     }
     implement_vertex!(Scalar, tex_coord);
+
+    #[derive(Copy, Clone, Debug)]
+    struct Normal {
+        normal: [f32; ND]
+    }
+    implement_vertex!(Normal, normal);
 
     // Split position and texture coordinates into separate arrays.  That way we can change texture
     // coordinates (e.g. rescale a colorbar range or load a different result) without sending the
@@ -249,94 +249,121 @@ fn main() {
     // target.draw().  Since vertices are duplicated per cell, there need to be parallel vertex and
     // scalar arrays too
 
-    let mut nodes = Vec::with_capacity(tris.len() * ND);
-    let mut scalar = Vec::with_capacity(tris.len());
-    for i in 0 .. tris.len()
+    let mut nodes   = Vec::with_capacity(tris.len());
+    let mut scalar  = Vec::with_capacity(tris.len());
+    let mut normals = Vec::with_capacity(tris.len());
+    for i in 0 .. tris.len() / ND
     {
-        nodes.push(Node{position:
-            [
-                points[ND*tris[i] as usize + 0],
-                points[ND*tris[i] as usize + 1],
-                points[ND*tris[i] as usize + 2]
-            ]});
+        let mut p: [f32; ND*ND] = [0.0; ND*ND];
 
-        scalar.push(Scalar{tex_coord: ((data[tris[i] as usize] - smin) / (smax - smin)) as f32 });
+        for j in 0 .. ND
+        {
+            p[ND*j + 0] = points[ND*tris[ND*i + j] as usize + 0];
+            p[ND*j + 1] = points[ND*tris[ND*i + j] as usize + 1];
+            p[ND*j + 2] = points[ND*tris[ND*i + j] as usize + 2];
+
+            nodes.push(Node{position:
+                [
+                    p[ND*j + 0],
+                    p[ND*j + 1],
+                    p[ND*j + 2],
+                ]});
+
+            scalar.push(Scalar{tex_coord: ((data[tris[ND*i + j] as usize] - smin) / (smax - smin)) as f32 });
+        }
+
+        let p01: [f32; ND] = [p[3] - p[0], p[4] - p[1], p[5] - p[2]];
+        let p02: [f32; ND] = [p[6] - p[0], p[7] - p[1], p[8] - p[2]];
+        let nrm = normalize(&cross(&p01, &p02));
+
+        for _j in 0 .. ND
+        {
+            normals.push(Normal{normal:
+                [
+                    nrm[0],
+                    nrm[1],
+                    nrm[2],
+                ]});
+        }
     }
 
-    let node_buffer = glium::VertexBuffer::new(&display, &nodes).unwrap();
+    println!("node   0 = {:?}", nodes[0]);
+    println!("node   1 = {:?}", nodes[1]);
+    println!("node   2 = {:?}", nodes[2]);
+
+    println!("normal 0 = {:?}", normals[0]);
+    
+    let positions = glium::VertexBuffer::new(&display, &nodes).unwrap();
+    let normals   = glium::VertexBuffer::new(&display, &normals).unwrap();
+    let indices   = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
     let mut sca_buffer = glium::VertexBuffer::new(&display, &scalar).unwrap();
 
-    // TODO: free vtk object and other objects here if possible
-
-    let node_shader_src = r#"
+    let vertex_shader_src = r#"
         #version 150
 
         in vec3 position;
+        in vec3 normal;
         in float tex_coord;
-        out float n_tex_coord;
-        out vec3 v_position;
-        //flat out vec3 v_normal;
 
-        uniform mat4 matrix;
+        out vec3 v_normal;
+        out vec3 v_position;
+        out float n_tex_coord;
+
+        uniform mat4 perspective;
+        uniform mat4 view;
+        uniform mat4 model;
 
         void main() {
             n_tex_coord = tex_coord;
-            gl_Position = matrix * vec4(position, 1.0);
+            mat4 modelview = view * model;
+            v_normal = transpose(inverse(mat3(modelview))) * normal;
+            gl_Position = perspective * modelview * vec4(position, 1.0);
             v_position = gl_Position.xyz / gl_Position.w;
         }
     "#;
 
-    // TODO: Gouraud or Blinn-Phong shading
+    // TODO: Gouraud optional
+
+    // Blinn-Phong
     let fragment_shader_src = r#"
         #version 150
 
-        // No lighting
+        in vec3 v_normal;
+        in vec3 v_position;
         in float n_tex_coord;
+
         out vec4 color;
+
+        uniform vec3 u_light;
         uniform sampler1D tex;
-        void main() {
-            color = texture(tex, n_tex_coord);
-        }
 
-        //// Blinn-Phong shading
-        ////
-        //// TODO: duplicate nodes for each cell.  This is apparently the best way to have normals
-        //// per cell instead of normals per vertex?  Then pass normals as a new part of the
-        //// target.draw() tuple
-        ////
-        //in float n_tex_coord;
-        ////flat in vec3 v_normal;
-        //in vec3 v_normal;
-        //in vec3 v_position;
-        //
-        //out vec4 color;
-        //
-        //uniform vec3 u_light;
-        //uniform sampler1D tex;
-        //
         //const vec4 ambient_color = vec4(0.2, 0.0, 0.0, 1.0);
-        ////const vec3 diffuse_color = vec3(0.6, 0.0, 0.0, 1.0);
-        //vec4 diffuse_color = texture(tex, n_tex_coord);
+        //const vec4 diffuse_color = vec4(0.6, 0.0, 0.0, 1.0);
         //const vec4 specular_color = vec4(1.0, 1.0, 1.0, 1.0);
-        //
-        //void main() {
-        //    float diffuse = max(dot(normalize(v_normal), normalize(u_light)), 0.0);
-        //
-        //    vec3 camera_dir = normalize(-v_position);
-        //    vec3 half_direction = normalize(normalize(u_light) + camera_dir);
-        //    float specular = pow(max(dot(half_direction, normalize(v_normal)), 0.0), 16.0);
-        //
-        //    //color = vec4(ambient_color + diffuse * diffuse_color + specular * specular_color, 1.0);
-        //    color = ambient_color + diffuse * diffuse_color + specular * specular_color;
-        //    //color = diffuse_color;
-        //}
+        const vec4 specular_color = vec4(0.5, 0.5, 0.5, 1.0);
 
+        vec4 diffuse_color = texture(tex, n_tex_coord);
+        vec4 ambient_color = diffuse_color * 0.1;
+
+        void main() {
+            float diffuse = max(dot(normalize(v_normal), normalize(u_light)), 0.0);
+
+            vec3 camera_dir = normalize(-v_position);
+            vec3 half_direction = normalize(normalize(u_light) + camera_dir);
+            float specular = pow(max(dot(half_direction, normalize(v_normal)), 0.0), 16.0);
+
+            //color = vec4(ambient_color + diffuse * diffuse_color + specular * specular_color, 1.0);
+            color = ambient_color + diffuse * diffuse_color + specular * specular_color;
+        }
     "#;
 
-    let program = glium::Program::from_source(&display, node_shader_src, fragment_shader_src, None).unwrap();
+    let program = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src,
+                                              None).unwrap();
 
-    let mut t = 0.0;//-0.5;
     event_loop.run(move |event, _, control_flow| {
+        let next_frame_time = std::time::Instant::now() +
+            std::time::Duration::from_nanos(16_666_667);
+        *control_flow = glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
 
         match event {
             glutin::event::Event::WindowEvent { event, .. } => match event {
@@ -354,111 +381,99 @@ fn main() {
             _ => return,
         }
 
-        // 60 FPS
-        let next_frame_time = std::time::Instant::now() +
-            std::time::Duration::from_nanos(16_666_667);
-        *control_flow = glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
-
-        // we update `t`
-        //t += 0.01;
-        if t > 0.5 {
-            t = -0.5;
-
-            // TODO: remove this.  Test only to update sca_buffer w/o updating vertex buffer
-            // Can't do "for s in scalar" due to reasons
-            //
-            // Eventually, add options to cycle through result data arrays
-
-            for s in scalar.iter_mut()
-            {
-                s.tex_coord = 1.0 - s.tex_coord;
-            }
-            sca_buffer = glium::VertexBuffer::new(&display, &scalar).unwrap();
-
-        }
-
         let mut target = display.draw();
-        //target.clear_color(0.0, 0.0, 1.0, 1.0);
-        target.clear_color(0.322, 0.341, 0.431, 1.0);  // pv
+        target.clear_color_and_depth((0.322, 0.341, 0.431, 1.0), 1.0);
 
-        // TODO: set scale/bounds based on points bounds
+        // TODO: wrap this in uniform! here instead of in draw() arg
 
-        //// scratch/a.vtu
-        //let s = 0.05;
-        //let tx = -0.8;
-        //let ty = -0.8;
+        let s = 0.5; // scale
 
-        //// rbc
-        //let s = 0.2;
-        //let tx = -0.0;
-        //let ty = -0.0;
+        // TODO: rotations
+        
+        let model = [
+            [s   , 0.0, 0.0, 0.0],
+            [0.0, s   , 0.0, 0.0],
+            [0.0, 0.0, s   , 0.0],
+            [-0.2, 0.0, 0.0, 1.0f32]
+        ];
 
-        // teapot
-        let s = 0.1;
-        let tx = -0.0;
-        let ty = -0.0;
+        // weird y up shit
+        //let view = view_matrix(&[2.0, 1.0, 1.0], &[-2.0, -1.0, 1.0], &[0.0, 1.0, 0.0]);
 
-        //let s = 1.0;
-        //let tx = -0.0;
-        //let ty = -0.0;
+        // z up
+        let view = view_matrix(&[5.0, 5.0, 5.0], &[-2.0, -2.0, -1.4], &[0.0, 0.0, 1.0]);
 
-        let uniforms = uniform!
-        {
-            // TODO: rotations
+        let perspective = {
+            let (width, height) = target.get_dimensions();
+            let aspect_ratio = height as f32 / width as f32;
 
-            // TODO: perspective projection
+            let fov: f32 = 3.141592 / 3.0;
+            let zfar = 1024.0;
+            let znear = 0.1;
 
-            // TODO: adjust for window aspect
+            let f = 1.0 / (fov / 2.0).tan();
 
-            matrix: [
-                [  s, 0.0, 0.0, 0.0],
-                [0.0,   s, 0.0, 0.0],
-                [0.0, 0.0,   s, 0.0],
-                [ tx,  ty, 0.0, 1.0f32],
-            ],
-
-            // Linear sampling works better than the default, especially around texture 0
-            tex: glium::uniforms::Sampler::new(&texture)
-                    .magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
-                    .minify_filter(glium::uniforms::MinifySamplerFilter::Linear),
-
-            model: [
-                [0.01, 0.0, 0.0, 0.0],
-                [0.0, 0.01, 0.0, 0.0],
-                [0.0, 0.0, 0.01, 0.0],
-                [0.0, 0.0, 2.0, 1.0f32]
-            ],
-
-            view: view_matrix(&[2.0, 1.0, 1.0], &[-2.0, -1.0, 1.0], &[0.0, 1.0, 0.0]),
-
-            perspective: {
-                let (width, height) = target.get_dimensions();
-                let aspect_ratio = height as f32 / width as f32;
-
-                let fov: f32 = 3.141592 / 3.0;
-                let zfar = 1024.0;
-                let znear = 0.1;
-
-                let f = 1.0 / (fov / 2.0).tan();
-
-                [
-                    [f *   aspect_ratio   ,    0.0,              0.0              ,   0.0],
-                    [         0.0         ,     f ,              0.0              ,   0.0],
-                    [         0.0         ,    0.0,  (zfar+znear)/(zfar-znear)    ,   1.0],
-                    [         0.0         ,    0.0, -(2.0*zfar*znear)/(zfar-znear),   0.0],
-                ]
-            },
-
-            light: [1.4, 0.4, -0.7f32],
-
+            [
+                [f *   aspect_ratio   ,    0.0,              0.0              ,   0.0],
+                [         0.0         ,     f ,              0.0              ,   0.0],
+                [         0.0         ,    0.0,  (zfar+znear)/(zfar-znear)    ,   1.0],
+                [         0.0         ,    0.0, -(2.0*zfar*znear)/(zfar-znear),   0.0],
+            ]
         };
 
-        target.draw((&node_buffer, &sca_buffer),
-            glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList),
-            &program, &uniforms, &Default::default()).unwrap();
+        let light = [1.4, 0.4, -0.7f32];
+
+        // Linear sampling works better than the default, especially around texture 0
+        let tex = glium::uniforms::Sampler::new(&texture)
+            .magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
+            .minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
+
+        // end uniforms
+
+        let params = glium::DrawParameters {
+            depth: glium::Depth {
+                test: glium::draw_parameters::DepthTest::IfLess,
+                write: true,
+                .. Default::default()
+            },
+            //backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockWise,
+            .. Default::default()
+        };
+
+        target.draw((&positions, &normals, &sca_buffer), &indices, &program,
+            &uniform!
+            {
+                model: model, 
+                view: view, 
+                perspective: perspective, 
+                u_light: light,
+                tex: tex,
+            },
+            &params).unwrap();
 
         target.finish().unwrap();
     });
+}
+
+//==============================================================================
+
+fn cross(a: &[f32; ND], b: &[f32; ND]) -> [f32; ND]
+{[
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+]}
+
+fn normalize(c: &[f32; ND]) -> [f32; ND]
+{
+    // TODO: use general dot product and norm fn's
+    let norm = (c[0]*c[0] + c[1]*c[1] + c[2]*c[2]).sqrt();
+
+    [
+        c[0] / norm,
+        c[1] / norm,
+        c[2] / norm,
+    ]
 }
 
 //==============================================================================
