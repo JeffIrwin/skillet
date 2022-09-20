@@ -179,14 +179,6 @@ fn main() {
 
 					// Cast everything to f32.  TODO: other types?
 					data.clone().cast_into::<f32>().unwrap()
-					//match data.scalar_type()
-					//{
-					//	ScalarType::F32 => data.clone().cast_into::<f32>().unwrap(),
-					//	//ScalarType::F64 => data.clone().into_vec::<f64>().unwrap().iter().map(|n| *n as f32).collect(),
-					//	ScalarType::F64 => data.clone().cast_into::<f32>().unwrap(),
-					//	_ => todo!()
-					//}
-
 				}
 
 				// TODO: vectors, tensors
@@ -323,7 +315,7 @@ fn main() {
 		//const vec4 ambient_color = vec4(0.2, 0.0, 0.0, 1.0);
 		//const vec4 diffuse_color = vec4(0.6, 0.0, 0.0, 1.0);
 		//const vec4 specular_color = vec4(1.0, 1.0, 1.0, 1.0);
-		const vec4 specular_color = vec4(0.5, 0.5, 0.5, 1.0);
+		const vec4 specular_color = vec4(0.1, 0.1, 0.1, 1.0);
 
 		vec4 diffuse_color = texture(tex, n_tex_coord);
 		vec4 ambient_color = diffuse_color * 0.1;
@@ -333,7 +325,7 @@ fn main() {
 
 			vec3 camera_dir = normalize(-v_position);
 			vec3 half_direction = normalize(normalize(u_light) + camera_dir);
-			float specular = pow(max(dot(half_direction, normalize(v_normal)), 0.0), 16.0);
+			float specular = pow(max(dot(half_direction, normalize(v_normal)), 0.0), 40.0);
 
 			//color = vec4(ambient_color + diffuse * diffuse_color + specular * specular_color, 1.0);
 			color = ambient_color + diffuse * diffuse_color + specular * specular_color;
@@ -386,7 +378,7 @@ fn main() {
 				},
 				glutin::event::WindowEvent::MouseInput  {state, button, .. } =>
 				{
-					println!("state, button = {:?}, {:?}", state, button);
+					//println!("state, button = {:?}, {:?}", state, button);
 
 					match button
 					{
@@ -444,14 +436,14 @@ fn main() {
 		}
 
 		let mut target = display.draw();
-		target.clear_color_and_depth((0.322, 0.341, 0.431, 1.0), 1.0);
 
-		// TODO: wrap things in uniform! here instead of in draw() arg
+		// TODO: gradient bg
+		target.clear_color_and_depth((0.322, 0.341, 0.431, 1.0), 1.0);
 
 		let perspective = perspective_matrix(fov, zfar, znear, target.get_dimensions());
 
 		// Light direction
-		let light = [-1.4, -0.0, -0.7f32];
+		let light = [0.2, -0.6, -1.0f32];//[-1.4, -0.0, -0.7f32];
 		//let light = [1.4, 0.4, -0.7f32];
 
 		// Linear sampling works better than the default, especially around texture 0
@@ -459,7 +451,15 @@ fn main() {
 			.magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
 			.minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
 
-		// end uniforms
+		let uniforms = uniform!
+			{
+				perspective: perspective,
+				view : view ,
+				world: world,
+				model: model,
+				u_light: light,
+				tex: tex,
+			};
 
 		let params = glium::DrawParameters {
 			depth: glium::Depth {
@@ -472,16 +472,7 @@ fn main() {
 		};
 
 		target.draw((&tri_vbuf, &tri_nbuf, &tri_sbuf), &tri_ibuf, &program,
-			&uniform!
-			{
-				model: model,
-				view: view,
-				world: world,
-				perspective: perspective,
-				u_light: light,
-				tex: tex,
-			},
-			&params).unwrap();
+			&uniforms, &params).unwrap();
 
 		target.finish().unwrap();
 	});
@@ -524,13 +515,10 @@ fn rotate_matrix(m: &[[f32; NM]; NM], u: &[f32; ND], theta: f32) -> [[f32; NM]; 
 			[        0.0,          0.0,          0.0, 1.0],
 		];
 
-	println!("theta = {:?}", theta);
-	println!("r = {:?}", r);
+	//println!("theta = {:?}", theta);
+	//println!("r = {:?}", r);
 
-	let mr = mat4x4_mul(m, &r);
-	//let mr = mat4x4_mul(&r, m);
-	//println!("mr = {:?}", mr);
-	mr
+	mat4x4_mul(m, &r)
 }
 
 //==============================================================================
