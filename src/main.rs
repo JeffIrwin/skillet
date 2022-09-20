@@ -5,6 +5,13 @@
 
 //****************
 
+// TODO: remove glfw from cargo.toml
+
+//extern crate glfw;
+//use glfw::{Action, Context, Key};
+
+//****************
+
 #[macro_use]
 extern crate glium;
 
@@ -28,15 +35,53 @@ const NM: usize = 4;
 
 //==============================================================================
 
+//fn main_glfw() {
+//	let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
+//
+//	let (mut window, events) = glfw.create_window(300, 300, "Hello this is window", 
+//			glfw::WindowMode::Windowed)
+//			.expect("Failed to create GLFW window.");
+//
+//	window.set_key_polling(true);
+//	window.make_current();
+//
+//	while !window.should_close() {
+//		glfw.poll_events();
+//		for (_, event) in glfw::flush_messages(&events) {
+//			handle_window_event(&mut window, event);
+//		}
+//	}
+//}
+//
+//fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent) {
+//	match event {
+//		glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
+//			window.set_should_close(true)
+//		}
+//		_ => {}
+//	}
+//}
+
+//==============================================================================
+
 fn main() {
 	println!("skillet:  Starting main()");
 
 	use glium::{glutin, Surface};
 
+	//let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
+	//let (mut window, events) = glfw.create_window(300, 300, "Hello this is window", 
+	//		glfw::WindowMode::Windowed)
+	//		.expect("Failed to create GLFW window.");
+	//window.set_key_polling(true);
+	//window.make_current();
+
 	let event_loop = glutin::event_loop::EventLoop::new();
 	let wb = glutin::window::WindowBuilder::new();
 	let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
 	let display = glium::Display::new(wb, cb, &event_loop).unwrap();
+
+	//let display = glium::Display::new(window, cb, &event_loop).unwrap();
 
 	//=========================================================
 
@@ -323,10 +368,11 @@ fn main() {
 		uniform mat4 perspective;
 		uniform mat4 view;
 		uniform mat4 model;
+		uniform mat4 world;
 
 		void main() {
 			n_tex_coord = tex_coord;
-			mat4 modelview = view * model;
+			mat4 modelview = view * world * model;
 			v_normal = transpose(inverse(mat3(modelview))) * normal;
 			gl_Position = perspective * modelview * vec4(position, 1.0);
 			v_position = gl_Position.xyz / gl_Position.w;
@@ -371,20 +417,121 @@ fn main() {
 	let program = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src,
 			None).unwrap();
 
+	// Don't scale or translate here.  Model should always be identity unless I add an option
+	// for a user to move one model relative to others
+	let mut model = identity_matrix();
+
+	let mut world = identity_matrix();
+
+	// weird y up shit
+	//let view = view_matrix(&[2.0, 1.0, 1.0], &[-2.0, -1.0, 1.0], &[0.0, 1.0, 0.0]);
+
+	// z up, isometric-ish
+	//let eye = [ 5.0,  5.0, 9.25];
+	let up  = [ 0.0,  0.0,  1.0];
+	let dir = [-1.0, -1.0, -1.0];
+
+	//let (width, height) = target.get_dimensions();
+	let fov: f32 = 3.141592 / 6.0;
+	let zfar  = 1024.0;
+	let znear = 0.1;
+
+	// Right-handed
+	let eye = [18.2005,  17.67002, 19.862025];
+	//let mut view = view_matrix(&eye, &dir, &up);
+
+	// View must start like this, because subsequent rotations are performed about its fixed
+	// coordinate system
+	let mut view = view_matrix(&[0.0, 0.0, 30.0], &[0.0, 0.0, -1.0], &[0.0, 1.0, 0.0]);
+
+	//// Left-handed (note eye is inverted. could account for this by making a separate
+	//// view_matrix_lh() fn)
+	//let eye = [-18.2005,  -17.67002, -19.862025];
+	//let view = view_matrix(&eye, &dir, &up);
+
+	// Mouse buttons
+	let mut lmb = false;
+	//let mut rmb = false;
+	//let mut mmb = false;
+
+	// Mouse position
+	let mut x0 = 0.0;
+	let mut y0 = 0.0;
+
 	event_loop.run(move |event, _, control_flow| {
 		let next_frame_time = std::time::Instant::now() +
 			std::time::Duration::from_nanos(16_666_667);
 		*control_flow = glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
 
-		match event {
-			glutin::event::Event::WindowEvent { event, .. } => match event {
+		match event
+		{
+			glutin::event::Event::WindowEvent { event, .. } => match event
+			{
 				glutin::event::WindowEvent::CloseRequested => {
 					*control_flow = glutin::event_loop::ControlFlow::Exit;
 					return;
 				},
+				glutin::event::WindowEvent::MouseInput  {state, button, .. } => {
+
+					println!("state, button = {:?}, {:?}", state, button);
+
+					match button
+					{
+						glium::glutin::event::MouseButton::Left =>
+						{
+							lmb = state == glium::glutin::event::ElementState::Pressed;
+						},
+						glium::glutin::event::MouseButton::Right =>
+						{
+							//rmb = state == glium::glutin::event::ElementState::Pressed;
+						},
+						glium::glutin::event::MouseButton::Middle =>
+						{
+							//mmb = state == glium::glutin::event::ElementState::Pressed;
+						},
+						_ => ()
+					}
+
+					//return;
+
+				},
+				glutin::event::WindowEvent::CursorMoved {position, .. } => {
+
+					let x = position.x as f32;
+					let y = position.y as f32;
+
+					if lmb
+					{
+						//println!("position = {:?}", position);
+
+						// Right-hand normal to drag direction
+						let mut u = [-(y - y0), -(x - x0), 0.0f32];
+						//let mut u = [x - x0, y - y0, 0.0f32];
+
+						let norm = norm(&u);
+						u[0] /= norm;
+						u[1] /= norm;
+						// z is zero, no need to normalize
+
+						let sensitivity = 0.005;
+						let theta = sensitivity * norm;
+
+						//view  = rotate_matrix(&view , &u, theta);
+						//model = rotate_matrix(&model, &u, theta);
+						world = rotate_matrix(&world, &u, theta);
+					}
+
+					x0 = x;
+					y0 = y;
+
+					//return;
+
+				},
 				_ => return,
 			},
-			glutin::event::Event::NewEvents(cause) => match cause {
+
+			glutin::event::Event::NewEvents(cause) => match cause
+			{
 				glutin::event::StartCause::ResumeTimeReached { .. } => (),
 				glutin::event::StartCause::Init => (),
 				_ => return,
@@ -395,44 +542,10 @@ fn main() {
 		let mut target = display.draw();
 		target.clear_color_and_depth((0.322, 0.341, 0.431, 1.0), 1.0);
 
-		// TODO: wrap this in uniform! here instead of in draw() arg
+		// TODO: wrap things in uniform! here instead of in draw() arg
 
-		// TODO: rotations
-
-		// Don't scale or translate here.  Model should always be identity unless I add an option
-		// for a user to move one model relative to others
-		//
-		// TODO: make const identity function
-		let model = [
-			[1.0, 0.0, 0.0, 0.0],
-			[0.0, 1.0, 0.0, 0.0],
-			[0.0, 0.0, 1.0, 0.0],
-			[0.0, 0.0, 0.0, 1.0f32]
-		];
-
-		// weird y up shit
-		//let view = view_matrix(&[2.0, 1.0, 1.0], &[-2.0, -1.0, 1.0], &[0.0, 1.0, 0.0]);
-
-		// z up, isometric-ish
-		//let eye = [ 5.0,  5.0, 9.25];
-		let up  = [ 0.0,  0.0,  1.0];
-		let dir = [-1.0, -1.0, -1.0];
-
-		//let (width, height) = target.get_dimensions();
-		let fov: f32 = 3.141592 / 6.0;
-		let zfar  = 1024.0;
-		let znear = 0.1;
-
-		// Right-handed
-		let eye = [18.2005,  17.67002, 19.862025];
-		let view = view_matrix(&eye, &dir, &up);
-		let perspective = perspective_matrix(fov, zfar, znear, target.get_dimensions());
-
-		//// Left-handed (note eye is inverted. could account for this by making a separate
-		//// view_matrix_lh() fn)
-		//let eye = [-18.2005,  -17.67002, -19.862025];
-		//let view = view_matrix(&eye, &dir, &up);
 		//let perspective = perspective_matrix_lh(fov, zfar, znear, target.get_dimensions());
+		let perspective = perspective_matrix(fov, zfar, znear, target.get_dimensions());
 
 		// Light direction
 		let light = [-1.4, -0.0, -0.7f32];
@@ -460,6 +573,7 @@ fn main() {
 			{
 				model: model,
 				view: view,
+				world: world,
 				perspective: perspective,
 				u_light: light,
 				tex: tex,
@@ -469,6 +583,81 @@ fn main() {
 		target.finish().unwrap();
 	});
 }
+
+//==============================================================================
+
+fn rotate_matrix(m: &[[f32; NM]; NM], u: &[f32; ND], theta: f32) -> [[f32; NM]; NM]
+{
+	// General axis-angle rotation about an axis vector [x,y,z] by angle theta.  Vector must be normalized!  Apply rotation r to input matrix m and return m * r.
+
+	// Skip identity/singular case. Caller likely set vector to garbage
+	if theta == 0.0f32
+	{
+		return *m;
+	}
+
+	// Ref:
+	//
+	//     https://en.wikipedia.org/wiki/Rotation_matrix#Rotation_matrix_from_axis_and_angle
+	//
+	// c.f.
+	//
+	//     https://github.com/JeffIrwin/temple-viewer/blob/c25f28cf3457edc136d213fd01df47d826bc279b/Math.HC#L39
+
+	let c = theta.cos();
+	let s = theta.sin();
+	let t = 1.0 - c;
+
+	let x = u[0];
+	let y = u[1];
+	let z = u[2];
+
+	let r =
+		[
+			[c + x*x*t  ,  x*y*t - z*s,  z*x*t + y*s, 0.0],
+			[x*y*t + z*s,    c + y*y*t,  y*z*t - x*s, 0.0],
+			[z*x*t - y*s,  y*z*t + x*s,    c + z*z*t, 0.0],
+			[        0.0,          0.0,          0.0, 1.0],
+		];
+
+	println!("theta = {:?}", theta);
+	println!("r = {:?}", r);
+
+	//let r = identity_matrix();
+
+	let mr = mat4x4_mul(m, &r);
+	//let mr = mat4x4_mul(&r, m);
+	//println!("mr = {:?}", mr);
+	mr
+}
+
+//==============================================================================
+
+// TODO: make a general slice version returning Vec for any size a, b (panic if inner dims don't
+// agree)
+fn mat4x4_mul(a: &[[f32; NM]; NM], b: &[[f32; NM]; NM]) -> [[f32; NM]; NM]
+{
+	let mut c = [[0.0; NM]; NM];
+	for i in 0 .. NM
+	{
+		for j in 0 .. NM
+		{
+			for k in 0 .. NM
+			{
+				c[i][j] += a[i][k] * b[k][j];
+			}
+		}
+	}
+	c
+}
+
+fn identity_matrix() -> [[f32; NM]; NM]
+{[
+	[1.0, 0.0, 0.0, 0.0],
+	[0.0, 1.0, 0.0, 0.0],
+	[0.0, 0.0, 1.0, 0.0],
+	[0.0, 0.0, 0.0, 1.0]
+]}
 
 //==============================================================================
 
@@ -552,27 +741,6 @@ fn cross(a: &[f32], b: &[f32]) -> [f32; ND]
 
 fn view_matrix(position: &[f32; ND], direction: &[f32; ND], up: &[f32; ND]) -> [[f32; NM]; NM]
 {
-	//let f = {
-	//	let f = direction;
-	//	let len = f[0] * f[0] + f[1] * f[1] + f[2] * f[2];
-	//	let len = len.sqrt();
-	//	[f[0] / len, f[1] / len, f[2] / len]
-	//};
-	//let s = [up[1] * f[2] - up[2] * f[1],
-	//		 up[2] * f[0] - up[0] * f[2],
-	//		 up[0] * f[1] - up[1] * f[0]];
-	//let s_norm = {
-	//	let len = s[0] * s[0] + s[1] * s[1] + s[2] * s[2];
-	//	let len = len.sqrt();
-	//	[s[0] / len, s[1] / len, s[2] / len]
-	//};
-	//let u = [f[1] * s[2] - f[2] * s[1],
-	//		 f[2] * s[0] - f[0] * s[2],
-	//		 f[0] * s[1] - f[1] * s[0]];
-	//let p = [-position[0] * s[0] - position[1] * s[1] - position[2] * s[2],
-	//		 -position[0] * u[0] - position[1] * u[1] - position[2] * u[2],
-	//		 -position[0] * f[0] - position[1] * f[1] - position[2] * f[2]];
-
 	// Ref:
 	//
 	// https://github.com/JeffIrwin/glfw/blob/9416a43404934cc54136e988a233bee64d4d48fb/deps/linmath.h#L404
@@ -614,22 +782,22 @@ fn perspective_matrix(fov: f32 , zfar: f32, znear: f32, (width, height): (u32, u
 	]
 }
 
-fn perspective_matrix_lh(fov: f32 , zfar: f32, znear: f32, (width, height): (u32, u32))
-		-> [[f32; NM]; NM]
-{
-	// Left-handed (why?)
-
-	let aspect_ratio = height as f32 / width as f32;
-
-	let f = 1.0 / (fov / 2.0).tan();
-
-	[
-		[f * aspect_ratio, 0.0, 0.0                           ,  0.0],
-		[         0.0    ,   f, 0.0                           ,  0.0],
-		[         0.0    , 0.0, -    (zfar+znear)/(zfar-znear),  1.0],
-		[         0.0    , 0.0,  (2.0*zfar*znear)/(zfar-znear),  0.0],
-	]
-}
+//fn perspective_matrix_lh(fov: f32 , zfar: f32, znear: f32, (width, height): (u32, u32))
+//		-> [[f32; NM]; NM]
+//{
+//	// Left-handed (why?)
+//
+//	let aspect_ratio = height as f32 / width as f32;
+//
+//	let f = 1.0 / (fov / 2.0).tan();
+//
+//	[
+//		[f * aspect_ratio, 0.0, 0.0                           ,  0.0],
+//		[         0.0    ,   f, 0.0                           ,  0.0],
+//		[         0.0    , 0.0, -    (zfar+znear)/(zfar-znear),  1.0],
+//		[         0.0    , 0.0,  (2.0*zfar*znear)/(zfar-znear),  0.0],
+//	]
+//}
 
 //==============================================================================
 
