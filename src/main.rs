@@ -258,8 +258,8 @@ fn main()
 	let yc = 0.5 * (ymin + ymax);
 	let zc = 0.5 * (zmin + zmax);
 
-	let  cen = [ xc,  yc,  zc];
-	let ncen = [-xc, -yc, -zc];
+	let mut  cen = vec![xc, yc, zc];
+	//let mut ncen = neg(&cen);
 
 	let diam = norm(&sub(&[xmax, ymax, zmax], &[xmin, ymin, zmin]));
 	println!("diam = {}", diam);
@@ -496,6 +496,8 @@ fn main()
 
 					if lmb
 					{
+						// Rotate about axis within the xy screen plane
+
 						// Right-hand normal to drag direction
 						let mut u = [-(y - y0), -(x - x0), 0.0];
 
@@ -509,13 +511,15 @@ fn main()
 						let theta = sensitivity * norm;
 
 						// Push translation to model center, apply rotation, then pop trans
-						world = translate_matrix(&world, &ncen);
-						world = rotate_matrix(&world, &u, theta);
-						world = translate_matrix(&world,  &cen);
+						world = translate_matrix(&world, &neg(&cen));
+						world = rotate_matrix   (&world, &u, theta);
+						world = translate_matrix(&world, &cen);
 
 					}
 					else if mmb
 					{
+						// Pan
+
 						//println!("mmb drag");
 
 						// TODO: scale sensitivity by model diam and zoom level
@@ -523,8 +527,12 @@ fn main()
 						let dx =  sensitivity * (x - x0);
 						let dy = -sensitivity * (y - y0);
 
-						// TODO: panning should modify cen/ncen
-						world = translate_matrix(&world, &[dx, dy, 0.0]);
+						let tran = [dx, dy, 0.0];
+
+						world = translate_matrix(&world, &tran);
+
+						// Panning moves rotation center too
+						cen = add(&cen, &tran);
 					}
 
 					x0 = x;
@@ -710,7 +718,7 @@ fn rotate_matrix(m: &[[f32; NM]; NM], u: &[f32; ND], theta: f32) -> [[f32; NM]; 
 
 //==============================================================================
 
-fn translate_matrix(m: &[[f32; NM]; NM], u: &[f32; ND]) -> [[f32; NM]; NM]
+fn translate_matrix(m: &[[f32; NM]; NM], u: &[f32]) -> [[f32; NM]; NM]
 {
 	// Translate in place and apply after m
 
@@ -781,7 +789,24 @@ fn identity_matrix() -> [[f32; NM]; NM]
 
 // TODO: consider using nalgebra crate for vector/matrix wrapper types with operator overloading
 
-// Can't overload "-" operator because rust makes it impossible by design without a wrapper type :(
+// Can't overload "+" operator because rust makes it impossible by design without a wrapper type :(
+fn add(a: &[f32], b: &[f32]) -> Vec<f32>
+{
+	if a.len() != b.len()
+	{
+		panic!("Incorrect length for add() arguments");
+	}
+
+	//a.iter().zip(b.iter()).map(|(x, y)| x - y).collect()
+
+	let mut c = Vec::with_capacity(a.len());
+	for i in 0 .. a.len()
+	{
+		c.push(a[i] + b[i]);
+	}
+	c
+}
+
 fn sub(a: &[f32], b: &[f32]) -> Vec<f32>
 {
 	if a.len() != b.len()
@@ -797,6 +822,11 @@ fn sub(a: &[f32], b: &[f32]) -> Vec<f32>
 		c.push(a[i] - b[i]);
 	}
 	c
+}
+
+fn neg(a: &[f32]) -> Vec<f32>
+{
+	a.iter().map(|x| -x).collect()
 }
 
 fn dot(a: &[f32], b: &[f32]) -> f32
