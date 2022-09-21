@@ -24,7 +24,7 @@ const PATCH: &str = env!("CARGO_PKG_VERSION_PATCH");
 //const MEV: String = format!("{} {}.{}.{}", ME, MAJOR, MINOR, PATCH);
 //const MEV: &str = concat!(ME, MAJOR, MINOR, PATCH);
 
-// I can't figure out how to cat const strs to another const str, but I can make a macro.
+// I can't figure out how to cat const strs to another const str, but I can make a macro
 macro_rules! mev
 {
 	() =>
@@ -254,6 +254,16 @@ fn main()
 	let (ymin, ymax) = get_bounds(&(points.iter().skip(1).step_by(ND).copied().collect::<Vec<f32>>()));
 	let (zmin, zmax) = get_bounds(&(points.iter().skip(2).step_by(ND).copied().collect::<Vec<f32>>()));
 
+	let xc = 0.5 * (xmin + xmax);
+	let yc = 0.5 * (ymin + ymax);
+	let zc = 0.5 * (zmin + zmax);
+
+	let  cen = [ xc,  yc,  zc];
+	let ncen = [-xc, -yc, -zc];
+
+	let diam = norm(&sub(&[xmax, ymax, zmax], &[xmin, ymin, zmin]));
+	println!("diam = {}", diam);
+
 	println!("x in [{}, {}]", ff32(xmin), ff32(xmax));
 	println!("y in [{}, {}]", ff32(ymin), ff32(ymax));
 	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
@@ -410,6 +420,8 @@ fn main()
 
 	// View must be initialized like this, because subsequent rotations are performed about its
 	// fixed coordinate system
+	//
+	// TODO: set eye from model bounds
 	let mut eye = [0.0, 0.0, 30.0];
 	let dir = [0.0, 0.0, -1.0];
 	let up  = [0.0, 1.0,  0.0];
@@ -492,21 +504,26 @@ fn main()
 						u[1] /= norm;
 						// z is zero, no need to normalize
 
-						// TODO: push translation to model center, apply rotation, then pop trans
 
 						let sensitivity = 0.005;
 						let theta = sensitivity * norm;
+
+						// Push translation to model center, apply rotation, then pop trans
+						world = translate_matrix(&world, &ncen);
 						world = rotate_matrix(&world, &u, theta);
+						world = translate_matrix(&world,  &cen);
+
 					}
 					else if mmb
 					{
 						//println!("mmb drag");
 
-						// TODO: scale sensitivity by model size and zoom level
+						// TODO: scale sensitivity by model diam and zoom level
 						let sensitivity = 0.01;
 						let dx =  sensitivity * (x - x0);
 						let dy = -sensitivity * (y - y0);
 
+						// TODO: panning should modify cen/ncen
 						world = translate_matrix(&world, &[dx, dy, 0.0]);
 					}
 
@@ -538,7 +555,7 @@ fn main()
 					// This sign convention matches ParaView, although the opposite scroll/zoom
 					// convention does exist
 					//
-					// TODO: at another sensitivity param and scale by model size too
+					// TODO: at another sensitivity param and scale by model diam too
 					eye[2] = eye0[2] - 2.0 * z0 as f32;
 
 					// ParaView actually has two ways to "zoom": the RMB-drag moves the eye of
