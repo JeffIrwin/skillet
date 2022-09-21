@@ -258,8 +258,7 @@ fn main()
 	let yc = 0.5 * (ymin + ymax);
 	let zc = 0.5 * (zmin + zmax);
 
-	let mut  cen = vec![xc, yc, zc];
-	//let mut ncen = neg(&cen);
+	let mut cen = vec![xc, yc, zc];
 
 	let diam = norm(&sub(&[xmax, ymax, zmax], &[xmin, ymin, zmin]));
 	println!("diam = {}", diam);
@@ -419,10 +418,10 @@ fn main()
 	let znear = 0.1;
 
 	// View must be initialized like this, because subsequent rotations are performed about its
-	// fixed coordinate system
-	//
-	// TODO: set eye from model bounds
-	let mut eye = [0.0, 0.0, 30.0];
+	// fixed coordinate system.  Set eye from model bounds.  You could do some trig here on fov to
+	// guarantee whole model is in view, but it's pretty close as is except for possible extreme
+	// cases
+	let mut eye = [0.0, 0.0, zmax + diam];
 	let dir = [0.0, 0.0, -1.0];
 	let up  = [0.0, 1.0,  0.0];
 	let mut view = view_matrix(&eye, &dir, &up);
@@ -432,7 +431,7 @@ fn main()
 	// Mouse buttons
 	let mut lmb = false;
 	let mut mmb = false;
-	//let mut rmb = false; // TODO: other zoom method
+	//let mut rmb = false;
 
 	// Mouse position
 	let mut x0 = 0.0;
@@ -442,6 +441,13 @@ fn main()
 	// or -1 (or 2, 3, ... if you scroll fast).  For a very large float, adding 1.0 won't change
 	// its value!  Ints won't have that problem, although they may overflow if you scroll for eons
 	let mut z0: i64 = 0;
+
+	// This initial value doesn't matter.  It will get set correctly after the first frame
+	let mut display_diam = 1920.0;
+
+	// Initial pan to center
+	world = translate_matrix(&world, &neg(&cen));
+	cen = vec![0.0; ND];
 
 	println!("{}:  Starting main loop", ME);
 	println!();
@@ -506,8 +512,7 @@ fn main()
 						u[1] /= norm;
 						// z is zero, no need to normalize
 
-
-						let sensitivity = 0.005;
+						let sensitivity = 0.0025;
 						let theta = sensitivity * norm;
 
 						// Push translation to model center, apply rotation, then pop trans
@@ -522,8 +527,8 @@ fn main()
 
 						//println!("mmb drag");
 
-						// TODO: scale sensitivity by model diam and zoom level
-						let sensitivity = 0.01;
+						// TODO: scale sensitivity by zoom scale
+						let sensitivity = 1.0 * diam / display_diam;
 						let dx =  sensitivity * (x - x0);
 						let dy = -sensitivity * (y - y0);
 
@@ -562,13 +567,14 @@ fn main()
 
 					// This sign convention matches ParaView, although the opposite scroll/zoom
 					// convention does exist
-					//
-					// TODO: at another sensitivity param and scale by model diam too
-					eye[2] = eye0[2] - 2.0 * z0 as f32;
 
-					// ParaView actually has two ways to "zoom": the RMB-drag moves the eye of
-					// the view, like here, while the scrool wheel scales the world, which I still
-					// have to do
+					let sensitivity = 0.1;
+					eye[2] = eye0[2] - sensitivity * diam * z0 as f32;
+
+					// TODO: ParaView actually has two ways to "zoom": the RMB-drag moves the eye
+					// of the view, like here, while the scroll wheel scales the world, which
+					// I still have to do.  Implement the scaling method and patch it in here.
+					// Move this code to the rmb drag match-case.
 
 					view = view_matrix(&eye, &dir, &up);
 				},
@@ -585,6 +591,7 @@ fn main()
 		}
 
 		let mut target = display.draw();
+		display_diam = tnorm(target.get_dimensions());
 
 		// TODO: gradient bg
 		target.clear_color_and_depth((0.322, 0.341, 0.431, 1.0), 1.0);
@@ -850,6 +857,12 @@ fn dot(a: &[f32], b: &[f32]) -> f32
 fn norm(a: &[f32]) -> f32
 {
 	dot(&a, &a).sqrt()
+}
+
+fn tnorm((w, h): (u32, u32)) -> f32
+{
+	// Tuple norm
+	((w*w) as f32 + (h*h) as f32).sqrt()
 }
 
 fn normalize(a: &[f32]) -> Vec<f32>
