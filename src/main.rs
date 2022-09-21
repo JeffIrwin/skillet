@@ -1,6 +1,10 @@
 
 //==============================================================================
 
+use std::io::Cursor;
+
+//****************
+
 #[macro_use]
 extern crate glium;
 
@@ -12,27 +16,64 @@ use vtkio::model::*;
 
 // Global constants
 
+const ME: &str = "Skillet";
+const MAJOR: &str = env!("CARGO_PKG_VERSION_MAJOR");
+const MINOR: &str = env!("CARGO_PKG_VERSION_MINOR");
+const PATCH: &str = env!("CARGO_PKG_VERSION_PATCH");
+
+//const MEV: String = format!("{} {}.{}.{}", ME, MAJOR, MINOR, PATCH);
+//const MEV: &str = concat!(ME, MAJOR, MINOR, PATCH);
+
+// I can't figure out how to cat const strs to another const str, but I can make a macro.
+macro_rules! mev
+{
+	() =>
+	{
+		format!("{} {}.{}.{}", ME, MAJOR, MINOR, PATCH)
+	};
+}
+
 // Number of dimensions
 const ND: usize = 3;
 
 // Augmented matrix size
-const NM: usize = 4;
+const NM: usize = ND + 1;
+
+// TODO: parameterize # verts per tri
 
 //==============================================================================
 
-fn main() {
-	println!("skillet:  Starting main()");
+fn main()
+{
+	println!();
+	println!("{}:  Starting main()", ME);
+	println!("{}:  {}", ME, mev!());
+	println!();
 
 	use glium::{glutin, Surface};
 
 	let event_loop = glutin::event_loop::EventLoop::new();
-	let wb = glutin::window::WindowBuilder::new();
+
+	// include_bytes!() statically includes the file relative to this source path at compile time
+	let icon = image::load(Cursor::new(&include_bytes!("../res/icon.png")),
+			image::ImageFormat::Png).unwrap().to_rgba8();
+	let winicon = Some(glutin::window::Icon::from_rgba(icon.to_vec(),
+			icon.dimensions().0, icon.dimensions().1).unwrap());
+
+	// TODO: maximize instead of hard-coding size
+	let wb = glutin::window::WindowBuilder::new()
+		.with_title(mev!())
+		.with_window_icon(winicon)
+		.with_inner_size(glutin::dpi::LogicalSize::new(1920.0, 1080.0));
+
 	let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
 	let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
 	//=========================================================
 
 	// Define the colormap.  Hard-code for now
+	//
+	// TODO: load from res file w/ include_bytes like icon
 
 	// Red to Blue Rainbow (RGBA)
 	let cmap = vec!
@@ -69,13 +110,14 @@ fn main() {
 
 	let image = glium::texture::RawImage1d::from_raw_rgba(cmap);
 
-	println!("image.w()   = {}", image.width);
-	println!("image.len() = {}", image.data.len());
+	//println!("image.w()   = {}", image.width);
+	//println!("image.len() = {}", image.data.len());
 
 	let texture = glium::texture::SrgbTexture1d::new(&display, image).unwrap();
 
 	#[derive(Copy, Clone, Debug)]
-	struct Node {
+	struct Node
+	{
 		position: [f32; ND]
 	}
 	implement_vertex!(Node, position);
@@ -83,13 +125,15 @@ fn main() {
 	// Even vectors and tensors will be rendered as "scalars", since you can only colormap one
 	// component (or magnitude) at a time, which is a scalar
 	#[derive(Copy, Clone)]
-	struct Scalar {
+	struct Scalar
+	{
 		tex_coord: f32,
 	}
 	implement_vertex!(Scalar, tex_coord);
 
 	#[derive(Copy, Clone, Debug)]
-	struct Normal {
+	struct Normal
+	{
 		normal: [f32; ND]
 	}
 	implement_vertex!(Normal, normal);
@@ -107,9 +151,9 @@ fn main() {
 	// polydata natively here
 
 	use std::path::PathBuf;
+	let file_path = PathBuf::from("./res/teapot.vtu");
 	//let file_path = PathBuf::from("./res/ico64.vtu");
 	//let file_path = PathBuf::from("./res/ico.vtu");
-	let file_path = PathBuf::from("./res/teapot.vtu");
 
 	//let file_path = PathBuf::from("./scratch/rbc-sinx.vtu");
 
@@ -130,18 +174,28 @@ fn main() {
 	//return;
 
 	// TODO: match UnstructuredGrid vs PolyData, etc.
-	let pieces = if let DataSet::UnstructuredGrid { pieces, .. } = vtk.data {
+	let pieces = if let DataSet::UnstructuredGrid { pieces, ..} = vtk.data
+	{
 		pieces
-	} else {
+	}
+	else
+	{
 		panic!("UnstructuredGrid not found.  Wrong vtk data type");
 	};
 
-	println!("n pieces = {}", pieces.len());
+	println!("Number of pieces = {}", pieces.len());
+
+	if pieces.len() > 1
+	{
+		// To do?  Render each piece as if it's a totally separate VTK file.  They could have
+		// unrelated numbers of points, number and type of results, etc.
+		unimplemented!("multiple pieces");
+	}
 
 	let piece = pieces[0].load_piece_data(None).unwrap();
 
-	println!("num_points = {}", piece.num_points());
-	println!("num_cells  = {}", piece.cells.types.len());
+	println!("Number of points = {}", piece.num_points());
+	println!("Number of cells  = {}", piece.cells.types.len());
 	println!();
 
 	let points = piece.points.cast_into::<f32>().unwrap();
@@ -166,27 +220,26 @@ fn main() {
 	//	println!("a = {:?}", a);
 	//}
 
-	// Get the contents of the first pointdata array, assumining it's a scalar
-
-	let pdata: Vec<f32> = match &piece.data.point[0] {
-		Attribute::DataArray(DataArray { elem, data, .. }) => {
-			match elem {
-				ElementType::Scalars {
-					..
-				} => {
-
-					// This is based on write_attrib() from vtkio/src/writer.rs
-
-					// Cast everything to f32.  TODO: other types?
+	// Get the contents of the first pointdata array, assumining it's a scalar.  This is based on
+	// write_attrib() from vtkio/src/writer.rs
+	let pdata = match &piece.data.point[0]
+	{
+		Attribute::DataArray(DataArray {elem, data, ..}) =>
+		{
+			match elem
+			{
+				ElementType::Scalars{..}
+				=>
+				{
+					// Cast everything to f32
 					data.clone().cast_into::<f32>().unwrap()
 				}
 
 				// TODO: vectors, tensors
 				_ => todo!()
-
 			}
 		}
-		Attribute::Field {..} => todo!()
+		Attribute::Field {..} => unimplemented!("field attribute for point data")
 	};
 
 	//println!("pdata = {:?}", pdata);
@@ -194,13 +247,17 @@ fn main() {
 	//****************
 
 	// Get min/max of scalar.  This may not handle NaN correctly
-	let mut smin = pdata[0];
-	let mut smax = pdata[0];
-	for i in 1 .. pdata.len()
-	{
-		if pdata[i] < smin { smin = pdata[i]; }
-		if pdata[i] > smax { smax = pdata[i]; }
-	}
+	let (smin, smax) = get_bounds(&pdata);
+
+	// Get point bounds
+	let (xmin, xmax) = get_bounds(&(points.iter().skip(0).step_by(ND).copied().collect::<Vec<f32>>()));
+	let (ymin, ymax) = get_bounds(&(points.iter().skip(1).step_by(ND).copied().collect::<Vec<f32>>()));
+	let (zmin, zmax) = get_bounds(&(points.iter().skip(2).step_by(ND).copied().collect::<Vec<f32>>()));
+
+	println!("x in [{}, {}]", ff32(xmin), ff32(xmax));
+	println!("y in [{}, {}]", ff32(ymin), ff32(ymax));
+	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
+	println!();
 
 	// Capacity could be set ahead of time for tris with an extra pass over cell types to count
 	// triangles
@@ -257,15 +314,15 @@ fn main() {
 					-nrm[0],
 					-nrm[1],
 					-nrm[2],
-				]});
+				]
+			});
 		}
 	}
 
-	println!("node   0 = {:?}", nodes[0]);
-	println!("node   1 = {:?}", nodes[1]);
-	println!("node   2 = {:?}", nodes[2]);
-
-	println!("normal 0 = {:?}", normals[0]);
+	//println!("node   0 = {:?}", nodes[0]);
+	//println!("node   1 = {:?}", nodes[1]);
+	//println!("node   2 = {:?}", nodes[2]);
+	//println!("normal 0 = {:?}", normals[0]);
 
 	let     tri_vbuf = glium::VertexBuffer::new(&display, &nodes).unwrap();
 	let     tri_nbuf = glium::VertexBuffer::new(&display, &normals).unwrap();
@@ -288,7 +345,8 @@ fn main() {
 		uniform mat4 model;
 		uniform mat4 world;
 
-		void main() {
+		void main()
+		{
 			n_tex_coord = tex_coord;
 			mat4 modelview = view * world * model;
 			v_normal = transpose(inverse(mat3(modelview))) * normal;
@@ -312,6 +370,9 @@ fn main() {
 		uniform vec3 u_light;
 		uniform sampler1D tex;
 
+		// Some of these parameters, like specular color or shininess, could be moved into
+		// uniforms, or they're probably fine as defaults
+
 		//const vec4 ambient_color = vec4(0.2, 0.0, 0.0, 1.0);
 		//const vec4 diffuse_color = vec4(0.6, 0.0, 0.0, 1.0);
 		//const vec4 specular_color = vec4(1.0, 1.0, 1.0, 1.0);
@@ -320,7 +381,8 @@ fn main() {
 		vec4 diffuse_color = texture(tex, n_tex_coord);
 		vec4 ambient_color = diffuse_color * 0.1;
 
-		void main() {
+		void main()
+		{
 			float diffuse = max(dot(normalize(v_normal), normalize(u_light)), 0.0);
 
 			vec3 camera_dir = normalize(-v_position);
@@ -348,35 +410,50 @@ fn main() {
 
 	// View must be initialized like this, because subsequent rotations are performed about its
 	// fixed coordinate system
-	let eye = [0.0, 0.0, 30.0];
+	let mut eye = [0.0, 0.0, 30.0];
 	let dir = [0.0, 0.0, -1.0];
 	let up  = [0.0, 1.0,  0.0];
-	let view = view_matrix(&eye, &dir, &up);
+	let mut view = view_matrix(&eye, &dir, &up);
+
+	let eye0 = eye;
 
 	// Mouse buttons
 	let mut lmb = false;
-	//let mut rmb = false; // TODO: panning, zooming
-	//let mut mmb = false;
+	let mut mmb = false;
+	//let mut rmb = false; // TODO: other zoom method
 
 	// Mouse position
 	let mut x0 = 0.0;
 	let mut y0 = 0.0;
 
-	event_loop.run(move |event, _, control_flow| {
+	// Mouse scroll position.  Int is safer than float IMO.  The scroll wheel deltas are always +1
+	// or -1 (or 2, 3, ... if you scroll fast).  For a very large float, adding 1.0 won't change
+	// its value!  Ints won't have that problem, although they may overflow if you scroll for eons
+	let mut z0: i64 = 0;
+
+	println!("{}:  Starting main loop", ME);
+	println!();
+	event_loop.run(move |event, _, control_flow|
+	{
 		let next_frame_time = std::time::Instant::now() +
 			std::time::Duration::from_nanos(16_666_667);
 		*control_flow = glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
 
 		match event
 		{
-			glutin::event::Event::WindowEvent { event, .. } => match event
+			glutin::event::Event::WindowEvent { event, ..} => match event
 			{
 				glutin::event::WindowEvent::CloseRequested =>
 				{
+
+					println!("{}:  Exiting main()", ME);
+					println!();
+
 					*control_flow = glutin::event_loop::ControlFlow::Exit;
 					return;
+
 				},
-				glutin::event::WindowEvent::MouseInput  {state, button, .. } =>
+				glutin::event::WindowEvent::MouseInput  {state, button, ..} =>
 				{
 					//println!("state, button = {:?}, {:?}", state, button);
 
@@ -392,43 +469,90 @@ fn main() {
 						},
 						glium::glutin::event::MouseButton::Middle =>
 						{
-							//mmb = state == glium::glutin::event::ElementState::Pressed;
+							mmb = state == glium::glutin::event::ElementState::Pressed;
 						},
 						_ => ()
 					}
 
 				},
-				glutin::event::WindowEvent::CursorMoved {position, .. } => {
+				glutin::event::WindowEvent::CursorMoved {position, ..} =>
+				{
+					//println!("position = {:?}", position);
 
 					let x = position.x as f32;
 					let y = position.y as f32;
 
 					if lmb
 					{
-						//println!("position = {:?}", position);
-
 						// Right-hand normal to drag direction
-						let mut u = [-(y - y0), -(x - x0), 0.0f32];
+						let mut u = [-(y - y0), -(x - x0), 0.0];
 
 						let norm = norm(&u);
 						u[0] /= norm;
 						u[1] /= norm;
 						// z is zero, no need to normalize
 
+						// TODO: push translation to model center, apply rotation, then pop trans
+
 						let sensitivity = 0.005;
 						let theta = sensitivity * norm;
 						world = rotate_matrix(&world, &u, theta);
 					}
+					else if mmb
+					{
+						//println!("mmb drag");
+
+						// TODO: scale sensitivity by model size and zoom level
+						let sensitivity = 0.01;
+						let dx =  sensitivity * (x - x0);
+						let dy = -sensitivity * (y - y0);
+
+						world = translate_matrix(&world, &[dx, dy, 0.0]);
+					}
 
 					x0 = x;
 					y0 = y;
+				},
+				glutin::event::WindowEvent::MouseWheel {delta, ..} =>
+				{
+					//println!("delta = {:?}", delta);
+					//println!("z0 = {}", z0);
+
+					let dz = match delta
+					{
+						glutin::event::MouseScrollDelta::LineDelta(_a, b) =>
+						{
+							//println!("a b = {} {}", a, b);
+							b
+						},
+						//glutin::event::MouseScrollDelta::PixelDelta(p) =>
+						//{
+						//	println!("p = {:?}", p);
+						//	//unimplemented!()
+						//},
+						_ => (0.0)
+					};
+
+					z0 += dz as i64;
+
+					// This sign convention matches ParaView, although the opposite scroll/zoom
+					// convention does exist
+					//
+					// TODO: at another sensitivity param and scale by model size too
+					eye[2] = eye0[2] - 2.0 * z0 as f32;
+
+					// ParaView actually has two ways to "zoom": the RMB-drag moves the eye of
+					// the view, like here, while the scrool wheel scales the world, which I still
+					// have to do
+
+					view = view_matrix(&eye, &dir, &up);
 				},
 				_ => return,
 			},
 
 			glutin::event::Event::NewEvents(cause) => match cause
 			{
-				glutin::event::StartCause::ResumeTimeReached { .. } => (),
+				glutin::event::StartCause::ResumeTimeReached {..} => (),
 				glutin::event::StartCause::Init => (),
 				_ => return,
 			},
@@ -461,13 +585,15 @@ fn main() {
 				tex: tex,
 			};
 
-		let params = glium::DrawParameters {
-			depth: glium::Depth {
+		let params = glium::DrawParameters
+		{
+			depth: glium::Depth
+			{
 				test: glium::draw_parameters::DepthTest::IfLess,
 				write: true,
 				.. Default::default()
 			},
-			backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+			//backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
 			.. Default::default()
 		};
 
@@ -476,6 +602,50 @@ fn main() {
 
 		target.finish().unwrap();
 	});
+}
+
+//==============================================================================
+
+fn ff32(num: f32) -> String
+{
+	// Rust doesn't do optional args, so we have 2 fn's instead
+	fmt_f32(num, 12, 5, 2)
+}
+
+fn fmt_f32(num: f32, width: usize, precision: usize, exp_pad: usize) -> String
+{
+	// https://stackoverflow.com/questions/65264069/alignment-of-floating-point-numbers-printed-in-scientific-notation
+
+	let mut num = format!("{:.precision$e}", num, precision = precision);
+
+	// Safe to `unwrap` as `num` is guaranteed to contain `'e'`
+	let exp = num.split_off(num.find('e').unwrap());
+
+	let (sign, exp) = if exp.starts_with("e-")
+	{
+		('-', &exp[2..])
+	}
+	else 
+	{
+		('+', &exp[1..])
+	};
+	num.push_str(&format!("e{}{:0>pad$}", sign, exp, pad = exp_pad));
+
+	format!("{:>width$}", num, width = width)
+}
+
+//==============================================================================
+
+fn get_bounds(x: &[f32]) -> (f32, f32)
+{
+	let mut xmin = x[0];
+	let mut xmax = x[0];
+	for i in 1 .. x.len()
+	{
+		if x[i] < xmin { xmin = x[i]; }
+		if x[i] > xmax { xmax = x[i]; }
+	}
+	(xmin, xmax)
 }
 
 //==============================================================================
@@ -518,14 +688,29 @@ fn rotate_matrix(m: &[[f32; NM]; NM], u: &[f32; ND], theta: f32) -> [[f32; NM]; 
 	//println!("theta = {:?}", theta);
 	//println!("r = {:?}", r);
 
-	mat4x4_mul(m, &r)
+	mul_mat4(m, &r)
 }
 
 //==============================================================================
 
-// TODO: make a general slice version returning Vec for any size a, b (panic if inner dims don't
-// agree)
-fn mat4x4_mul(a: &[[f32; NM]; NM], b: &[[f32; NM]; NM]) -> [[f32; NM]; NM]
+fn translate_matrix(m: &[[f32; NM]; NM], u: &[f32; ND]) -> [[f32; NM]; NM]
+{
+	// Translate in place and apply after m
+
+	let t =
+		[
+			[ 1.0,  0.0,  0.0, 0.0],
+			[ 0.0,  1.0,  0.0, 0.0],
+			[ 0.0,  0.0,  1.0, 0.0],
+			[u[0], u[1], u[2], 1.0],
+		];
+
+	mul_mat4(m, &t)
+}
+
+//==============================================================================
+
+fn mul_mat4(a: &[[f32; NM]; NM], b: &[[f32; NM]; NM]) -> [[f32; NM]; NM]
 {
 	let mut c = [[0.0; NM]; NM];
 	for i in 0 .. NM
@@ -541,12 +726,38 @@ fn mat4x4_mul(a: &[[f32; NM]; NM], b: &[[f32; NM]; NM]) -> [[f32; NM]; NM]
 	c
 }
 
+//// It's called an arg because I shout "arg!" at rustc when it complains about mismatches between
+//// array vs slice vs Vec
+//fn mul_matrix(a: &[&[f32]], b: &[&[f32]]) -> Vec<Vec<f32>>
+//{
+//	if a[0].len() != b.len()
+//	{
+//		panic!("Inner dimensions must agree for mul_matrix()");
+//	}
+//	// check dims > 0
+//
+//	//let mut c = [[0.0; a.len()]; b[0].len()];
+//	let mut c = vec![vec![0.0; a.len()]; b[0].len()];
+//
+//	for i in 0 .. a.len()
+//	{
+//		for j in 0 .. b[0].len()
+//		{
+//			for k in 0 .. b.len()
+//			{
+//				c[i][j] += a[i][k] * b[k][j];
+//			}
+//		}
+//	}
+//	c
+//}
+
 fn identity_matrix() -> [[f32; NM]; NM]
 {[
 	[1.0, 0.0, 0.0, 0.0],
 	[0.0, 1.0, 0.0, 0.0],
 	[0.0, 0.0, 1.0, 0.0],
-	[0.0, 0.0, 0.0, 1.0]
+	[0.0, 0.0, 0.0, 1.0],
 ]}
 
 //==============================================================================
@@ -558,7 +769,7 @@ fn sub(a: &[f32], b: &[f32]) -> Vec<f32>
 {
 	if a.len() != b.len()
 	{
-		panic!("Incorrect length for dot() arguments");
+		panic!("Incorrect length for sub() arguments");
 	}
 
 	//a.iter().zip(b.iter()).map(|(x, y)| x - y).collect()
