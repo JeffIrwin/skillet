@@ -7,6 +7,7 @@ use std::io::Cursor;
 //****************
 
 // This crate
+use skillet::*;
 use skillet::consts::*;
 
 //****************
@@ -19,32 +20,6 @@ extern crate glium;
 //****************
 
 use vtkio::model::*;
-
-//****************
-
-// Global constants
-
-const ME: &str = "Skillet";
-const MAJOR: &str = env!("CARGO_PKG_VERSION_MAJOR");
-const MINOR: &str = env!("CARGO_PKG_VERSION_MINOR");
-const PATCH: &str = env!("CARGO_PKG_VERSION_PATCH");
-
-//const MEV: String = format!("{} {}.{}.{}", ME, MAJOR, MINOR, PATCH);
-//const MEV: &str = concat!(ME, MAJOR, MINOR, PATCH);
-
-// I can't figure out how to cat const strs to another const str, but I can make a macro
-macro_rules! mev
-{
-	() =>
-	{
-		format!("{} {}.{}.{}", ME, MAJOR, MINOR, PATCH)
-	};
-}
-
-// Augmented matrix size
-const NM: usize = ND + 1;
-
-// TODO: parameterize # verts per tri
 
 //==============================================================================
 
