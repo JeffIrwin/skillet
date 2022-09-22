@@ -1,8 +1,16 @@
 
 //==============================================================================
 
+// Standard
 use std::io::Cursor;
 
+//****************
+
+// This crate
+use skillet::consts::*;
+
+//****************
+// 3Ps
 //****************
 
 #[macro_use]
@@ -32,10 +40,6 @@ macro_rules! mev
 		format!("{} {}.{}.{}", ME, MAJOR, MINOR, PATCH)
 	};
 }
-
-// Number of dimensions
-const ND: usize = 3;
-const N2: usize = 2;
 
 // Augmented matrix size
 const NM: usize = ND + 1;
@@ -295,7 +299,8 @@ fn main()
 
 	// TODO: push other cell types to other buffers.  Draw them with separate calls to
 	// target.draw().  Since vertices are duplicated per cell, there need to be parallel vertex and
-	// scalar arrays too
+	// scalar arrays too.  We could just push every cell type to a big list of tris, but that
+    // wouldn't allow correct edge display or advanced filters that treat data at the cell level.
 
 	let mut nodes   = Vec::with_capacity(tris.len());
 	let mut scalar  = Vec::with_capacity(tris.len());
