@@ -9,6 +9,7 @@ use std::io::Cursor;
 // This crate
 use skillet::*;
 use skillet::consts::*;
+use skillet::math::*;
 
 //****************
 // 3Ps
@@ -786,24 +787,6 @@ fn translate_matrix(m: &[[f32; NM]; NM], u: &[f32]) -> [[f32; NM]; NM]
 		];
 
 	mul_mat4(m, &t)
-}
-
-//==============================================================================
-
-fn mul_mat4(a: &[[f32; NM]; NM], b: &[[f32; NM]; NM]) -> [[f32; NM]; NM]
-{
-	let mut c = [[0.0; NM]; NM];
-	for i in 0 .. NM
-	{
-		for j in 0 .. NM
-		{
-			for k in 0 .. NM
-			{
-				c[i][j] += a[i][k] * b[k][j];
-			}
-		}
-	}
-	c
 }
 
 //// It's called an arg because I shout "arg!" at rustc when it complains about mismatches between
