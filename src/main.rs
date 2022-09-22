@@ -36,7 +36,9 @@ fn main()
 
 	let event_loop = glutin::event_loop::EventLoop::new();
 
-	// include_bytes!() statically includes the file relative to this source path at compile time
+	// include_bytes!() statically includes the file relative to this source
+	// path at compile time
+
 	let icon = image::load(Cursor::new(&include_bytes!("../res/icon.png")),
 			image::ImageFormat::Png).unwrap().to_rgba8();
 	let winicon = Some(glutin::window::Icon::from_rgba(icon.to_vec(),
@@ -79,7 +81,8 @@ fn main()
 			255u8,   0u8,     0u8, 255u8,
 		];
 
-	//// Black-Body Radiation.  TODO: this probably needs to be interpolated and expanded
+	//// Black-Body Radiation.  TODO: this probably needs to be interpolated and
+	//// expanded
 	//let cmap = vec!
 	//	[
 	//		  0u8,   0u8,   0u8, 255u8,
@@ -113,8 +116,8 @@ fn main()
 	}
 	implement_vertex!(Node2, position2, color);
 
-	// Even vectors and tensors will be rendered as "scalars", since you can only colormap one
-	// component (or magnitude) at a time, which is a scalar
+	// Even vectors and tensors will be rendered as "scalars", since you can
+	// only colormap one component (or magnitude) at a time, which is a scalar
 	#[derive(Copy, Clone)]
 	struct Scalar
 	{
@@ -129,17 +132,18 @@ fn main()
 	}
 	implement_vertex!(Normal, normal);
 
-	// Split position and texture coordinates into separate arrays.  That way we can change texture
-	// coordinates (e.g. rescale a colorbar range or load a different result) without sending the
-	// position arrays to the GPU again
+	// Split position and texture coordinates into separate arrays.  That way we
+	// can change texture coordinates (e.g. rescale a colorbar range or load
+	// a different result) without sending the position arrays to the GPU again
 
 	//****************
 
 	// TODO: cmd arg for VTK filename
 
-	// VTK polydata files (or other piece types) can be saved as UnstructuredGrid (.vtu) in
-	// ParaView with Filters -> Alphabetical -> Append datasets, in the mean time until I implement
-	// polydata natively here
+	// VTK polydata files (or other piece types) can be saved as
+	// UnstructuredGrid (.vtu) in ParaView with Filters -> Alphabetical ->
+	// Append datasets, in the mean time until I implement polydata natively
+	// here
 
 	use std::path::PathBuf;
 	let file_path = PathBuf::from("./res/teapot.vtu");
@@ -153,11 +157,14 @@ fn main()
 	//let file_path = PathBuf::from("./scratch/teapot-ascii.vtk");
 	//let file_path = PathBuf::from("./scratch/cube.vtk");
 
-	//let file_path = PathBuf::from("./scratch/fran_cut.vtk"); // polydata with texture coords
+	//// polydata with texture coords
+	//let file_path = PathBuf::from("./scratch/fran_cut.vtk"); 
+
 	//let file_path = PathBuf::from("./scratch/a.vtu");
 
 	//let vtk = Vtk::parse_legacy_be(&file_path).expect(&format!("Failed to load file: {:?}", file_path));
-	let vtk = Vtk::import(&file_path).expect(&format!("Failed to load file: {:?}", file_path));
+	let vtk = Vtk::import(&file_path).expect(&format!(
+			"Failed to load file: {:?}", file_path));
 
 	//let file_out = PathBuf::from("./scratch/ascii.vtu");
 	//vtk.export_ascii(&file_out)
@@ -178,8 +185,9 @@ fn main()
 
 	if pieces.len() > 1
 	{
-		// To do?  Render each piece as if it's a totally separate VTK file.  They could have
-		// unrelated numbers of points, number and type of results, etc.
+		// To do?  Render each piece as if it's a totally separate VTK file.
+		// They could have unrelated numbers of points, number and type of
+		// results, etc.
 		unimplemented!("multiple pieces");
 	}
 
@@ -211,8 +219,8 @@ fn main()
 	//	println!("a = {:?}", a);
 	//}
 
-	// Get the contents of the first pointdata array, assumining it's a scalar.  This is based on
-	// write_attrib() from vtkio/src/writer.rs
+	// Get the contents of the first pointdata array, assumining it's a scalar.
+	// This is based on write_attrib() from vtkio/src/writer.rs
 	let pdata = match &piece.data.point[0]
 	{
 		Attribute::DataArray(DataArray {elem, data, ..}) =>
@@ -241,9 +249,12 @@ fn main()
 	let (smin, smax) = get_bounds(&pdata);
 
 	// Get point bounds
-	let (xmin, xmax) = get_bounds(&(points.iter().skip(0).step_by(ND).copied().collect::<Vec<f32>>()));
-	let (ymin, ymax) = get_bounds(&(points.iter().skip(1).step_by(ND).copied().collect::<Vec<f32>>()));
-	let (zmin, zmax) = get_bounds(&(points.iter().skip(2).step_by(ND).copied().collect::<Vec<f32>>()));
+	let (xmin, xmax) = get_bounds(&(points.iter().skip(0)
+			.step_by(ND).copied().collect::<Vec<f32>>()));
+	let (ymin, ymax) = get_bounds(&(points.iter().skip(1)
+			.step_by(ND).copied().collect::<Vec<f32>>()));
+	let (zmin, zmax) = get_bounds(&(points.iter().skip(2)
+			.step_by(ND).copied().collect::<Vec<f32>>()));
 
 	let xc = 0.5 * (xmin + xmax);
 	let yc = 0.5 * (ymin + ymax);
@@ -274,10 +285,11 @@ fn main()
 	}
 	//println!("tris = {:?}", tris);
 
-	// TODO: push other cell types to other buffers.  Draw them with separate calls to
-	// target.draw().  Since vertices are duplicated per cell, there need to be parallel vertex and
-	// scalar arrays too.  We could just push every cell type to a big list of tris, but that
-    // wouldn't allow correct edge display or advanced filters that treat data at the cell level.
+	// TODO: push other cell types to other buffers.  Draw them with separate
+	// calls to target.draw().  Since vertices are duplicated per cell, there
+	// need to be parallel vertex and scalar arrays too.  We could just push
+	// every cell type to a big list of tris, but that wouldn't allow correct
+	// edge display or advanced filters that treat data at the cell level.
 
 	let mut nodes   = Vec::with_capacity(tris.len());
 	let mut scalar  = Vec::with_capacity(tris.len());
@@ -459,10 +471,10 @@ fn main()
 	let zfar  = 1024.0;
 	let znear = 0.1;
 
-	// View must be initialized like this, because subsequent rotations are performed about its
-	// fixed coordinate system.  Set eye from model bounds.  You could do some trig here on fov to
-	// guarantee whole model is in view, but it's pretty close as is except for possible extreme
-	// cases
+	// View must be initialized like this, because subsequent rotations are
+	// performed about its fixed coordinate system.  Set eye from model bounds.
+	// You could do some trig here on fov to guarantee whole model is in view,
+	// but it's pretty close as is except for possible extreme cases
 	let mut eye = [0.0, 0.0, zmax + diam];
 	let dir = [0.0, 0.0, -1.0];
 	let up  = [0.0, 1.0,  0.0];
@@ -479,9 +491,10 @@ fn main()
 	let mut x0 = 0.0;
 	let mut y0 = 0.0;
 
-	// Mouse scroll position.  Int is safer than float IMO.  The scroll wheel deltas are always +1
-	// or -1 (or 2, 3, ... if you scroll fast).  For a very large float, adding 1.0 won't change
-	// its value!  Ints won't have that problem, although they may overflow if you scroll for eons
+	// Mouse scroll position.  Int is safer than float IMO.  The scroll wheel
+	// deltas are always +1 or -1 (or 2, 3, ... if you scroll fast).  For a very
+	// large float, adding 1.0 won't change its value!  Ints won't have that
+	// problem, although they may overflow if you scroll for eons
 	let mut z0: i64 = 0;
 
 	// This initial value doesn't matter.  It will get set correctly after the first frame
@@ -613,10 +626,11 @@ fn main()
 					let sensitivity = 0.1;
 					eye[2] = eye0[2] - sensitivity * diam * z0 as f32;
 
-					// TODO: ParaView actually has two ways to "zoom": the RMB-drag moves the eye
-					// of the view, like here, while the scroll wheel scales the world, which
-					// I still have to do.  Implement the scaling method and patch it in here.
-					// Move this code to the rmb drag match-case.
+					// TODO: ParaView actually has two ways to "zoom": the
+					// RMB-drag moves the eye of the view, like here, while the
+					// scroll wheel scales the world, which I still have to do.
+					// Implement the scaling method and patch it in here.  Move
+					// this code to the rmb drag match-case.
 
 					view = view_matrix(&eye, &dir, &up);
 				},
@@ -683,7 +697,8 @@ fn main()
 		// Swap buffers
 		target.finish().unwrap();
 
-		// TODO: take screenshot and compare for testing
+		// TODO: take screenshot and compare for testing (just don't do it
+		// everytime in the main loop)
 	});
 }
 
