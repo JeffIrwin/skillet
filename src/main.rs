@@ -118,6 +118,7 @@ fn main()
 	#[derive(Copy, Clone, Debug)]
 	struct Node
 	{
+		// 3D node
 		position: [f32; ND]
 	}
 	implement_vertex!(Node, position);
@@ -438,13 +439,15 @@ fn main()
 		}
 	"#;
 
-	// background vertices, no dupe
+	// background vertices
 	let bg_verts = vec!
 		[
-			Node2 { position2: [-1.0, -1.0], color: [0.082, 0.470, 0.470, 1.0] },
-			Node2 { position2: [ 1.0, -1.0], color: [0.082, 0.600, 0.341, 1.0] },
-			Node2 { position2: [ 1.0,  1.0], color: [0.082, 0.470, 0.470, 1.0] },
-			Node2 { position2: [-1.0,  1.0], color: [0.082, 0.341, 0.600, 1.0] },
+			// Colors are based on jekyll cayman theme.  Something funny is going on, maybe gamma
+			// correction
+			Node2 { position2: [-1.0, -1.0], color: [0.03, 0.235, 0.235, 1.0] },
+			Node2 { position2: [ 1.0, -1.0], color: [0.03, 0.350, 0.120, 1.0] },
+			Node2 { position2: [ 1.0,  1.0], color: [0.03, 0.235, 0.235, 1.0] },
+			Node2 { position2: [-1.0,  1.0], color: [0.03, 0.120, 0.350, 1.0] },
 		];
 
 	let bg_tri_vbuf = glium::VertexBuffer::new(&display, &bg_verts).unwrap();
