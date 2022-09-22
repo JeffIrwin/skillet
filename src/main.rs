@@ -35,6 +35,7 @@ macro_rules! mev
 
 // Number of dimensions
 const ND: usize = 3;
+const N2: usize = 2;
 
 // Augmented matrix size
 const NM: usize = ND + 1;
@@ -106,14 +107,24 @@ fn main()
 	//		255u8, 255u8, 255u8, 255u8,
 	//	];
 
+	//// Texture for gradient background
+	//let bg_map = vec!
+	//	[
+	//		 21u8,  87u8, 154u8, 255u8,
+	//		 21u8, 120u8, 121u8, 255u8,
+	//		 21u8, 154u8,  87u8, 255u8,
+	//	];
+
 	//=========================================================
 
 	let image = glium::texture::RawImage1d::from_raw_rgba(cmap);
+	let texture = glium::texture::SrgbTexture1d::new(&display, image).unwrap();
 
 	//println!("image.w()   = {}", image.width);
 	//println!("image.len() = {}", image.data.len());
 
-	let texture = glium::texture::SrgbTexture1d::new(&display, image).unwrap();
+	//let bg_image = glium::texture::RawImage1d::from_raw_rgba(bg_map);
+	//let bg_texture = glium::texture::SrgbTexture1d::new(&display, bg_image).unwrap();
 
 	#[derive(Copy, Clone, Debug)]
 	struct Node
@@ -121,6 +132,15 @@ fn main()
 		position: [f32; ND]
 	}
 	implement_vertex!(Node, position);
+
+	#[derive(Copy, Clone, Debug)]
+	struct Node2
+	{
+		// 2D node for background
+		position2: [f32; N2],
+		color: [f32; NM],
+	}
+	implement_vertex!(Node2, position2, color);
 
 	// Even vectors and tensors will be rendered as "scalars", since you can only colormap one
 	// component (or magnitude) at a time, which is a scalar
@@ -403,7 +423,89 @@ fn main()
 		}
 	"#;
 
+	// Background shader
+	let bg_vertex_shader_src = r#"
+		#version 150
+
+		in vec2 position2;
+		in vec4 color;
+		//out float scalar;
+		out vec4 v_color;
+
+		void main() {
+			//scalar = (position2[1] - position2[0] + 2.0) / 4.0;
+			v_color = color;
+			gl_Position = vec4(position2, 0, 1.0);
+		}
+	"#;
+
+	let bg_fragment_shader_src = r#"
+		#version 150
+
+		in vec2 v_tex_coords;
+		in float scalar;
+		in vec4 v_color;
+		out vec4 color;
+
+		const vec4 c0 = vec4(0.041, 0.171, 0.450, 1.0);
+		const vec4 c1 = vec4(0.041, 0.450, 0.171, 1.0);
+		//const vec4 c0 = vec4(1.0, 0.0, 0.0, 1.0);
+		//const vec4 c1 = vec4(0.0, 1.0, 0.0, 1.0);
+
+		void main() {
+			//color = 1.0 * (scalar * c0 + (1.0 - scalar) * c1);
+			color = v_color;
+		}
+	"#;
+
+	//// background vertices, duplicated per triangle
+	//let bg_verts = vec!
+	//	[
+	//		Node2 { position2: [-1.0, -1.0]},
+	//		Node2 { position2: [-1.0,  1.0]},
+	//		Node2 { position2: [ 1.0, -1.0]},
+
+	//		Node2 { position2: [ 1.0,  1.0]},
+	//		Node2 { position2: [-1.0,  1.0]},
+	//		Node2 { position2: [ 1.0, -1.0]},
+	//	];
+
+	// background vertices, no dupe
+	let bg_verts = vec!
+		[
+			Node2 { position2: [-1.0, -1.0], color: [0.082, 0.470, 0.470, 1.0] },
+			Node2 { position2: [-1.0,  1.0], color: [0.082, 0.341, 0.600, 1.0] },
+			Node2 { position2: [ 1.0, -1.0], color: [0.082, 0.600, 0.341, 1.0] },
+			Node2 { position2: [ 1.0,  1.0], color: [0.082, 0.470, 0.470, 1.0] },
+
+			//Node2 { position2: [-1.0, -1.0], color: [0.4666667, 0.5647059, 0.8509804, 1.0] },
+			//Node2 { position2: [-1.0,  1.0], color: [0.4666667, 0.7882353, 0.8509804, 1.0] },
+			//Node2 { position2: [ 1.0, -1.0], color: [0.5960784, 0.4666667, 0.8509804, 1.0] },
+			//Node2 { position2: [ 1.0,  1.0], color: [0.4666667, 0.5647059, 0.8509804, 1.0] },
+
+			//Node2 { position2: [-1.0, -1.0], color: [0.2745098,  0.3294118,  0.5019608, 1.0] },
+			//Node2 { position2: [-1.0,  1.0], color: [0.4666667, 0.7882353, 0.8509804, 1.0] },
+			//Node2 { position2: [ 1.0, -1.0], color: [0.5960784, 0.4666667, 0.8509804, 1.0] },
+			//Node2 { position2: [ 1.0,  1.0], color: [0.2745098,  0.3294118,  0.5019608, 1.0] },
+		];
+
+	let     bg_tri_vbuf = glium::VertexBuffer::new(&display, &bg_verts).unwrap();
+
+	//// dupe
+	//let     bg_tri_ibuf = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
+
+	// No dupe
+	let bg_tri_ibuf = glium::IndexBuffer::new(&display,
+		glium::index::PrimitiveType::TrianglesList,
+		&[
+			0, 1, 2,
+			1, 2, 3 as u32
+		]).unwrap();
+
 	let program = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src,
+			None).unwrap();
+
+	let bg_program = glium::Program::from_source(&display, bg_vertex_shader_src, bg_fragment_shader_src,
 			None).unwrap();
 
 	// Don't scale or translate here.  Model should always be identity unless I add an option
@@ -593,8 +695,7 @@ fn main()
 		let mut target = display.draw();
 		display_diam = tnorm(target.get_dimensions());
 
-		// TODO: gradient bg
-		target.clear_color_and_depth((0.322, 0.341, 0.431, 1.0), 1.0);
+		target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
 
 		let perspective = perspective_matrix(fov, zfar, znear, target.get_dimensions());
 
@@ -629,10 +730,19 @@ fn main()
 			.. Default::default()
 		};
 
+		target.draw(&bg_tri_vbuf, &bg_tri_ibuf, &bg_program,
+			&uniforms, &params).unwrap();
+
+		// Clearing the depth again here forces the background to the back
+		target.clear_depth(1.0);
+
 		target.draw((&tri_vbuf, &tri_nbuf, &tri_sbuf), &tri_ibuf, &program,
 			&uniforms, &params).unwrap();
 
+		// Swap buffers
 		target.finish().unwrap();
+
+		// TODO: take screenshot and compare for testing
 	});
 }
 
@@ -657,7 +767,7 @@ fn fmt_f32(num: f32, width: usize, precision: usize, exp_pad: usize) -> String
 	{
 		('-', &exp[2..])
 	}
-	else 
+	else
 	{
 		('+', &exp[1..])
 	};
