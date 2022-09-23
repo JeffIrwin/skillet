@@ -45,11 +45,10 @@ fn main()
 	let winicon = Some(glutin::window::Icon::from_rgba(icon.to_vec(),
 			icon.dimensions().0, icon.dimensions().1).unwrap());
 
-	// TODO: maximize instead of hard-coding size
 	let wb = glutin::window::WindowBuilder::new()
 		.with_title(mev!())
 		.with_window_icon(winicon)
-		.with_inner_size(glutin::dpi::LogicalSize::new(1920.0, 1080.0));
+		.with_maximized(true);
 
 	let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
 	let display = glium::Display::new(wb, cb, &event_loop).unwrap();
@@ -70,7 +69,6 @@ fn main()
 	{
 		// 2D node for background
 		position2: [f32; N2],
-		//color: [f32; NM], // TODO: cleanup
 		tex_coord: f32,
 	}
 	implement_vertex!(Node2, position2, /*color,*/ tex_coord);
@@ -660,7 +658,7 @@ fn main()
 		//let light = [1.4, 0.4, -0.7f32];
 
 		// Linear sampling works better than the default, especially around
-		// texture 0.  TODO: move this to colormaps.rs?
+		// texture 0
 		let tex = glium::uniforms::Sampler::new(&colormap)
 			.magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
 			.minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
