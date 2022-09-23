@@ -47,9 +47,9 @@ pub fn get_colormap(display: &glium::Display) -> glium::texture::SrgbTexture1d
 
 pub fn get_bg_colormap(display: &glium::Display) -> glium::texture::SrgbTexture1d
 {
-	// Texture for gradient background.  It has to be saved as a texture to be
-	// able to use gamma correction (sRGB).  Colors are based on jekyll cayman
-	// theme.
+	// Define the colormap for the gradient background.  It has to be saved as
+	// a texture to be able to use gamma correction (sRGB).  Colors are based on
+	// jekyll cayman theme.
 	let cmap = vec!
 		[
 			 21u8,  87u8, 154u8, 255u8,
