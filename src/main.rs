@@ -8,6 +8,7 @@ use std::io::Cursor;
 
 // This crate
 use skillet::*;
+use crate::colormaps::*;
 use crate::consts::*;
 use crate::math::*;
 use crate::utils::*;
@@ -53,51 +54,8 @@ fn main()
 	let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
 	let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
-	//=========================================================
-
-	// Define the colormap.  Hard-code for now
-	//
-	// TODO: load from res file w/ include_bytes like icon
-
-	// Red to Blue Rainbow (RGBA)
-	let cmap = vec!
-		[
-			  0u8,   0u8,   255u8, 255u8,
-			  0u8,  64u8,   255u8, 255u8,
-			  0u8, 128u8,   255u8, 255u8,
-			  0u8, 192u8,   255u8, 255u8,
-			  0u8, 255u8,   255u8, 255u8,
-			  0u8, 255u8,   192u8, 255u8,
-			  0u8, 255u8,   128u8, 255u8,
-			  0u8, 255u8,    64u8, 255u8,
-			  0u8, 255u8,     0u8, 255u8,
-			 64u8, 255u8,     0u8, 255u8,
-			128u8, 255u8,     0u8, 255u8,
-			192u8, 255u8,     0u8, 255u8,
-			255u8, 255u8,     0u8, 255u8,
-			255u8, 192u8,     0u8, 255u8,
-			255u8, 128u8,     0u8, 255u8,
-			255u8,  64u8,     0u8, 255u8,
-			255u8,   0u8,     0u8, 255u8,
-		];
-
-	//// Black-Body Radiation.  TODO: this probably needs to be interpolated and
-	//// expanded
-	//let cmap = vec!
-	//	[
-	//		  0u8,   0u8,   0u8, 255u8,
-	//		230u8,   0u8,   0u8, 255u8,
-	//		230u8, 230u8,   0u8, 255u8,
-	//		255u8, 255u8, 255u8, 255u8,
-	//	];
-
-	//=========================================================
-
-	let image = glium::texture::RawImage1d::from_raw_rgba(cmap);
-	let texture = glium::texture::SrgbTexture1d::new(&display, image).unwrap();
-
-	//println!("image.w()   = {}", image.width);
-	//println!("image.len() = {}", image.data.len());
+	let colormap = get_colormap(&display);
+	let bg_colormap = get_bg_colormap(&display);
 
 	#[derive(Copy, Clone, Debug)]
 	struct Node
@@ -112,9 +70,10 @@ fn main()
 	{
 		// 2D node for background
 		position2: [f32; N2],
-		color: [f32; NM],
+		//color: [f32; NM], // TODO: cleanup
+		tex_coord: f32,
 	}
-	implement_vertex!(Node2, position2, color);
+	implement_vertex!(Node2, position2, /*color,*/ tex_coord);
 
 	// Even vectors and tensors will be rendered as "scalars", since you can
 	// only colormap one component (or magnitude) at a time, which is a scalar
@@ -138,14 +97,17 @@ fn main()
 
 	//****************
 
-	// TODO: cmd arg for VTK filename
-
 	// VTK polydata files (or other piece types) can be saved as
 	// UnstructuredGrid (.vtu) in ParaView with Filters -> Alphabetical ->
 	// Append datasets, in the mean time until I implement polydata natively
 	// here
 
 	use std::path::PathBuf;
+
+	//****************
+
+	// TODO: cmd arg for VTK filename.  Refactor loading to fn
+
 	let file_path = PathBuf::from("./res/teapot.vtu");
 	//let file_path = PathBuf::from("./res/ico64.vtu");
 	//let file_path = PathBuf::from("./res/ico.vtu");
@@ -162,7 +124,8 @@ fn main()
 
 	//let file_path = PathBuf::from("./scratch/a.vtu");
 
-	//let vtk = Vtk::parse_legacy_be(&file_path).expect(&format!("Failed to load file: {:?}", file_path));
+	//****************
+
 	let vtk = Vtk::import(&file_path).expect(&format!(
 			"Failed to load file: {:?}", file_path));
 
@@ -221,9 +184,9 @@ fn main()
 
 	// Get the contents of the first pointdata array, assumining it's a scalar.
 	// This is based on write_attrib() from vtkio/src/writer.rs
-	let pdata = match &piece.data.point[0]
+	let (name, pdata) = match &piece.data.point[0]
 	{
-		Attribute::DataArray(DataArray {elem, data, ..}) =>
+		Attribute::DataArray(DataArray {elem, data, name}) =>
 		{
 			match elem
 			{
@@ -231,28 +194,35 @@ fn main()
 				=>
 				{
 					// Cast everything to f32
-					data.clone().cast_into::<f32>().unwrap()
+					(name, data.clone().cast_into::<f32>().unwrap())
 				}
 
 				// TODO: vectors, tensors
 				_ => todo!()
 			}
 		}
-		Attribute::Field {..} => unimplemented!("field attribute for point data")
+		Attribute::Field {..}
+				=> unimplemented!("field attribute for point data")
 	};
+
+	// TODO: display in legend
+	println!("Point data name = {}", name);
 
 	//println!("pdata = {:?}", pdata);
 
 	//****************
 
-	// Get min/max of scalar.  This may not handle NaN correctly
+	// Get min/max of scalar
 	let (smin, smax) = get_bounds(&pdata);
 
-	// Get point bounds
+	// Get point xyz bounds
+
 	let (xmin, xmax) = get_bounds(&(points.iter().skip(0)
 			.step_by(ND).copied().collect::<Vec<f32>>()));
+
 	let (ymin, ymax) = get_bounds(&(points.iter().skip(1)
 			.step_by(ND).copied().collect::<Vec<f32>>()));
+
 	let (zmin, zmax) = get_bounds(&(points.iter().skip(2)
 			.step_by(ND).copied().collect::<Vec<f32>>()));
 
@@ -263,21 +233,22 @@ fn main()
 	let mut cen = vec![xc, yc, zc];
 
 	let diam = norm(&sub(&[xmax, ymax, zmax], &[xmin, ymin, zmin]));
-	println!("diam = {}", diam);
 
+	//println!("diam = {}", diam);
 	println!("x in [{}, {}]", ff32(xmin), ff32(xmax));
 	println!("y in [{}, {}]", ff32(ymin), ff32(ymax));
 	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
 	println!();
 
-	// Capacity could be set ahead of time for tris with an extra pass over cell types to count
-	// triangles
+	// Capacity could be set ahead of time for tris with an extra pass over cell
+	// types to count triangles
 	let mut tris = Vec::new();
 	for i in 0 .. piece.cells.types.len()
 	{
 		if piece.cells.types[i] == CellType::Triangle
 		{
-			// In vtkio, cells.0 is the actual connectivity, and cells.1 is the offset
+			// In vtkio, cells.0 is the actual connectivity, and cells.1 is the
+			// offset
 			tris.push(cells.0[ (cells.1[i as usize] - 3) as usize ] as u32 );
 			tris.push(cells.0[ (cells.1[i as usize] - 2) as usize ] as u32 );
 			tris.push(cells.0[ (cells.1[i as usize] - 1) as usize ] as u32 );
@@ -291,11 +262,17 @@ fn main()
 	// every cell type to a big list of tris, but that wouldn't allow correct
 	// edge display or advanced filters that treat data at the cell level.
 
+	// TODO: split scalar handling to a separate loop (and eventually a separate
+	// fn).  Mesh geometry will only be loaded once, but scalars may be
+	// processed multiple times as the user cycles through results to display
+
 	let mut nodes   = Vec::with_capacity(tris.len());
 	let mut scalar  = Vec::with_capacity(tris.len());
 	let mut normals = Vec::with_capacity(tris.len());
 	for i in 0 .. tris.len() / ND
 	{
+		// Local array containing the coordinates of the vertices of a single
+		// triangle
 		let mut p: [f32; ND*ND] = [0.0; ND*ND];
 
 		for j in 0 .. ND
@@ -311,7 +288,8 @@ fn main()
 					p[ND*j + 2],
 				]});
 
-			scalar.push(Scalar{tex_coord: ((pdata[tris[ND*i + j] as usize] - smin) / (smax - smin)) as f32 });
+			let s = pdata[tris[ND*i + j] as usize];
+			scalar.push(Scalar{tex_coord: ((s-smin) / (smax-smin)) as f32 });
 		}
 
 		let p01 = sub(&p[3..6], &p[0..3]);
@@ -337,10 +315,12 @@ fn main()
 	//println!("node   2 = {:?}", nodes[2]);
 	//println!("normal 0 = {:?}", normals[0]);
 
-	let     tri_vbuf = glium::VertexBuffer::new(&display, &nodes).unwrap();
+	let     tri_vbuf = glium::VertexBuffer::new(&display, &nodes  ).unwrap();
 	let     tri_nbuf = glium::VertexBuffer::new(&display, &normals).unwrap();
-	let     tri_ibuf = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
-	let mut tri_sbuf = glium::VertexBuffer::new(&display, &scalar).unwrap();
+	let mut tri_sbuf = glium::VertexBuffer::new(&display, &scalar ).unwrap();
+
+	let     tri_ibuf = glium::index::NoIndices(
+			glium::index::PrimitiveType::TrianglesList);
 
 	let vertex_shader_src = r#"
 		#version 150
@@ -351,7 +331,7 @@ fn main()
 
 		out vec3 v_normal;
 		out vec3 v_position;
-		out float n_tex_coord;
+		out float v_tex_coord;
 
 		uniform mat4 perspective;
 		uniform mat4 view;
@@ -360,7 +340,7 @@ fn main()
 
 		void main()
 		{
-			n_tex_coord = tex_coord;
+			v_tex_coord = tex_coord;
 			mat4 modelview = view * world * model;
 			v_normal = transpose(inverse(mat3(modelview))) * normal;
 			gl_Position = perspective * modelview * vec4(position, 1.0);
@@ -376,34 +356,33 @@ fn main()
 
 		in vec3 v_normal;
 		in vec3 v_position;
-		in float n_tex_coord;
+		in float v_tex_coord;
 
 		out vec4 color;
 
 		uniform vec3 u_light;
 		uniform sampler1D tex;
 
-		// Some of these parameters, like specular color or shininess, could be moved into
-		// uniforms, or they're probably fine as defaults
+		// Some of these parameters, like specular color or shininess, could be
+		// moved into uniforms, or they're probably fine as defaults
 
-		//const vec4 ambient_color = vec4(0.2, 0.0, 0.0, 1.0);
-		//const vec4 diffuse_color = vec4(0.6, 0.0, 0.0, 1.0);
-		//const vec4 specular_color = vec4(1.0, 1.0, 1.0, 1.0);
 		const vec4 specular_color = vec4(0.1, 0.1, 0.1, 1.0);
 
-		vec4 diffuse_color = texture(tex, n_tex_coord);
+		vec4 diffuse_color = texture(tex, v_tex_coord);
 		vec4 ambient_color = diffuse_color * 0.1;
 
 		void main()
 		{
-			float diffuse = max(dot(normalize(v_normal), normalize(u_light)), 0.0);
+			float diffuse =
+					max(dot(normalize(v_normal), normalize(u_light)), 0.0);
 
 			vec3 camera_dir = normalize(-v_position);
-			vec3 half_direction = normalize(normalize(u_light) + camera_dir);
-			float specular = pow(max(dot(half_direction, normalize(v_normal)), 0.0), 40.0);
+			vec3 half_dir = normalize(normalize(u_light) + camera_dir);
+			float specular =
+					pow(max(dot(half_dir, normalize(v_normal)), 0.0), 40.0);
 
-			//color = vec4(ambient_color + diffuse * diffuse_color + specular * specular_color, 1.0);
-			color = ambient_color + diffuse * diffuse_color + specular * specular_color;
+			color = ambient_color +  diffuse *  diffuse_color
+			                      + specular * specular_color;
 		}
 	"#;
 
@@ -412,11 +391,14 @@ fn main()
 		#version 150
 
 		in vec2 position2;
-		in vec4 color;
-		out vec4 v_color;
+		//in vec4 color;
+		in float tex_coord;
+		//out vec4 v_color;
+		out float v_tex_coord;
 
 		void main() {
-			v_color = color;
+			//v_color = color;
+			v_tex_coord = tex_coord;
 			gl_Position = vec4(position2, 0, 1.0);
 		}
 	"#;
@@ -424,24 +406,30 @@ fn main()
 	let bg_fragment_shader_src = r#"
 		#version 150
 
-		in vec2 v_tex_coords;
-		in vec4 v_color;
+		in float v_tex_coord;
+		//in vec4 v_color;
 		out vec4 color;
 
+		uniform sampler1D bg_tex;
+
 		void main() {
-			color = v_color;
+			//color = v_color;
+			color = texture(bg_tex, v_tex_coord);
 		}
 	"#;
 
 	// background vertices
 	let bg_verts = vec!
 		[
-			// Colors are based on jekyll cayman theme.  Something funny is going on, maybe gamma
-			// correction
-			Node2 { position2: [-1.0, -1.0], color: [0.03, 0.235, 0.235, 1.0] },
-			Node2 { position2: [ 1.0, -1.0], color: [0.03, 0.350, 0.120, 1.0] },
-			Node2 { position2: [ 1.0,  1.0], color: [0.03, 0.235, 0.235, 1.0] },
-			Node2 { position2: [-1.0,  1.0], color: [0.03, 0.120, 0.350, 1.0] },
+			//Node2 { position2:[-1.0, -1.0], color:[0.03, 0.235, 0.235, 1.0]},
+			//Node2 { position2:[ 1.0, -1.0], color:[0.03, 0.350, 0.120, 1.0]},
+			//Node2 { position2:[ 1.0,  1.0], color:[0.03, 0.235, 0.235, 1.0]},
+			//Node2 { position2:[-1.0,  1.0], color:[0.03, 0.120, 0.350, 1.0]},
+
+			Node2 { position2: [-1.0, -1.0], tex_coord: 0.5, },
+			Node2 { position2: [ 1.0, -1.0], tex_coord: 1.0, },
+			Node2 { position2: [ 1.0,  1.0], tex_coord: 0.5, },
+			Node2 { position2: [-1.0,  1.0], tex_coord: 0.0, },
 		];
 
 	let bg_tri_vbuf = glium::VertexBuffer::new(&display, &bg_verts).unwrap();
@@ -454,20 +442,20 @@ fn main()
 			2, 3, 0 as u32
 		]).unwrap();
 
-	let program = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src,
-			None).unwrap();
+	let program = glium::Program::from_source(&display, vertex_shader_src,
+			fragment_shader_src, None).unwrap();
 
-	let bg_program = glium::Program::from_source(&display, bg_vertex_shader_src, bg_fragment_shader_src,
-			None).unwrap();
+	let bg_program = glium::Program::from_source(&display, bg_vertex_shader_src,
+			bg_fragment_shader_src, None).unwrap();
 
-	// Don't scale or translate here.  Model should always be identity unless I add an option
-	// for a user to move one model relative to others
+	// Don't scale or translate here.  Model should always be identity unless
+	// I add an option for a user to move one model relative to others
 	let model = identity_matrix();
 
 	// This is where transformations happen
 	let mut world = identity_matrix();
 
-	let fov: f32 = 3.141592 / 6.0;
+	let fov: f32 = PI / 6.0;
 	let zfar  = 1024.0;
 	let znear = 0.1;
 
@@ -475,19 +463,21 @@ fn main()
 	// performed about its fixed coordinate system.  Set eye from model bounds.
 	// You could do some trig here on fov to guarantee whole model is in view,
 	// but it's pretty close as is except for possible extreme cases
+
 	let mut eye = [0.0, 0.0, zmax + diam];
 	let dir = [0.0, 0.0, -1.0];
 	let up  = [0.0, 1.0,  0.0];
+
 	let mut view = view_matrix(&eye, &dir, &up);
 
-	let eye0 = eye;
+	//let eye0 = eye;
 
-	// Mouse buttons
+	// Mouse button states
 	let mut lmb = false;
 	let mut mmb = false;
-	//let mut rmb = false;
+	let mut rmb = false;
 
-	// Mouse position
+	// Mouse position from last frame
 	let mut x0 = 0.0;
 	let mut y0 = 0.0;
 
@@ -495,22 +485,31 @@ fn main()
 	// deltas are always +1 or -1 (or 2, 3, ... if you scroll fast).  For a very
 	// large float, adding 1.0 won't change its value!  Ints won't have that
 	// problem, although they may overflow if you scroll for eons
-	let mut z0: i64 = 0;
+	//let mut z0 = 0.0f32;
 
-	// This initial value doesn't matter.  It will get set correctly after the first frame
+	let mut scale_cum = 1.0;
+
+	// This initial value doesn't matter.  It will get set correctly after the
+	// first frame
 	let mut display_diam = 1920.0;
+	//let mut display_w = 1920.0;
+	//let mut display_h = 1080.0;
 
 	// Initial pan to center
 	world = translate_matrix(&world, &neg(&cen));
 	cen = vec![0.0; ND];
+
+	const PRESSED: glium::glutin::event::ElementState
+	             = glium::glutin::event::ElementState::Pressed;
 
 	println!("{}:  Starting main loop", ME);
 	println!();
 	event_loop.run(move |event, _, control_flow|
 	{
 		let next_frame_time = std::time::Instant::now() +
-			std::time::Duration::from_nanos(16_666_667);
-		*control_flow = glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
+				std::time::Duration::from_nanos(16_666_667);
+		*control_flow =
+				glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
 
 		match event
 		{
@@ -534,15 +533,15 @@ fn main()
 					{
 						glium::glutin::event::MouseButton::Left =>
 						{
-							lmb = state == glium::glutin::event::ElementState::Pressed;
+							lmb = state == PRESSED;
 						},
 						glium::glutin::event::MouseButton::Right =>
 						{
-							//rmb = state == glium::glutin::event::ElementState::Pressed;
+							rmb = state == PRESSED;
 						},
 						glium::glutin::event::MouseButton::Middle =>
 						{
-							mmb = state == glium::glutin::event::ElementState::Pressed;
+							mmb = state == PRESSED;
 						},
 						_ => ()
 					}
@@ -558,6 +557,8 @@ fn main()
 					if lmb
 					{
 						// Rotate about axis within the xy screen plane
+						//
+						// TODO: handle shift-lmb as z rotation
 
 						// Right-hand normal to drag direction
 						let mut u = [-(y - y0), -(x - x0), 0.0];
@@ -567,10 +568,11 @@ fn main()
 						u[1] /= norm;
 						// z is zero, no need to normalize
 
-						let sensitivity = 0.0025;
+						let sensitivity = 0.0035;
 						let theta = sensitivity * norm;
 
-						// Push translation to model center, apply rotation, then pop trans
+						// Push translation to model center, apply rotation,
+						// then pop trans
 						world = translate_matrix(&world, &neg(&cen));
 						world = rotate_matrix   (&world, &u, theta);
 						world = translate_matrix(&world, &cen);
@@ -578,14 +580,17 @@ fn main()
 					}
 					else if mmb
 					{
-						// Pan
+						// xy pan
 
 						//println!("mmb drag");
 
-						// TODO: scale sensitivity by zoom scale
-						let sensitivity = 1.0 * diam / display_diam;
-						let dx =  sensitivity * (x - x0);
-						let dy = -sensitivity * (y - y0);
+						let sensitivity = 1.5 * diam //* scale_cum
+								/ display_diam;
+
+						//let sensitivity = 1.0 * diam;
+
+						let dx =  sensitivity * (x - x0);// / display_h;
+						let dy = -sensitivity * (y - y0);// / display_w;
 
 						let tran = [dx, dy, 0.0];
 
@@ -594,14 +599,32 @@ fn main()
 						// Panning moves rotation center too
 						cen = add(&cen, &tran);
 					}
+					else if rmb
+					{
+						// z pan (eye motion zoom)
+						//
+						// This uses the opposite sign convention of ParaView,
+						// but I think it feels more consistent with the scroll
+						// wheel action:  scrolling up has a similar effect as
+						// rmb dragging up
+
+						let dz = y - y0;
+						//z0 += dz;
+
+						let sensitivity = 0.003;
+						//eye[2] = eye0[2] - sensitivity * diam * z0 as f32;
+						eye[2] += sensitivity * scale_cum * diam * dz;
+						view = view_matrix(&eye, &dir, &up);
+					}
 
 					x0 = x;
 					y0 = y;
 				},
 				glutin::event::WindowEvent::MouseWheel {delta, ..} =>
 				{
+					// Scroll scaling zoom
+
 					//println!("delta = {:?}", delta);
-					//println!("z0 = {}", z0);
 
 					let dz = match delta
 					{
@@ -618,21 +641,38 @@ fn main()
 						_ => (0.0)
 					};
 
-					z0 += dz as i64;
+					//z0 += dz as i64;
+					//println!("z0 = {}", z0);
 
-					// This sign convention matches ParaView, although the opposite scroll/zoom
-					// convention does exist
+					// This sign convention matches ParaView, although the
+					// opposite scroll/zoom convention does exist
+
+					// ParaView actually has two ways to "zoom": (1) RMB-drag
+					// moves the eye of the view, while (2) the scroll wheel
+					// scales the world
 
 					let sensitivity = 0.1;
-					eye[2] = eye0[2] - sensitivity * diam * z0 as f32;
 
-					// TODO: ParaView actually has two ways to "zoom": the
-					// RMB-drag moves the eye of the view, like here, while the
-					// scroll wheel scales the world, which I still have to do.
-					// Implement the scaling method and patch it in here.  Move
-					// this code to the rmb drag match-case.
+					//let scale = (sensitivity * (z0 as f32)).exp();
+					let scale = (sensitivity * dz).exp();
 
-					view = view_matrix(&eye, &dir, &up);
+					scale_cum *= scale;
+
+					//println!("scale = {}", scale);
+
+					world = scale_matrix(&world, scale);
+					cen = scale_vec(&cen, scale);
+
+					//view = scale_matrix(&view, scale);
+					//println!("scale_cum = {}", scale_cum);
+					//println!("world = {:?}", world);
+
+
+
+					//let sensitivity = 0.1;
+					//eye[2] = eye0[2] - sensitivity * diam * z0 as f32;
+					//view = view_matrix(&eye, &dir, &up);
+
 				},
 				_ => return,
 			},
@@ -647,19 +687,29 @@ fn main()
 		}
 
 		let mut target = display.draw();
+
 		display_diam = tnorm(target.get_dimensions());
+		//display_diam = target.get_dimensions().0 as f32;
+		//display_w = target.get_dimensions().0 as f32;
+		//display_h = target.get_dimensions().1 as f32;
 
 		target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
 
-		let perspective = perspective_matrix(fov, zfar, znear, target.get_dimensions());
+		let perspective =
+				perspective_matrix(fov, zfar, znear, target.get_dimensions());
 		//let perspective = identity_matrix();
 
 		// Light direction
 		let light = [0.2, -0.6, -1.0f32];//[-1.4, -0.0, -0.7f32];
 		//let light = [1.4, 0.4, -0.7f32];
 
-		// Linear sampling works better than the default, especially around texture 0
-		let tex = glium::uniforms::Sampler::new(&texture)
+		// Linear sampling works better than the default, especially around
+		// texture 0.  TODO: move this to colormaps.rs?
+		let tex = glium::uniforms::Sampler::new(&colormap)
+			.magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
+			.minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
+
+		let bg_tex = glium::uniforms::Sampler::new(&bg_colormap)
 			.magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
 			.minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
 
@@ -671,6 +721,7 @@ fn main()
 				model: model,
 				u_light: light,
 				tex: tex,
+				bg_tex: bg_tex,
 			};
 
 		let params = glium::DrawParameters
@@ -681,7 +732,8 @@ fn main()
 				write: true,
 				.. Default::default()
 			},
-			//backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+			//backface_culling: glium::draw_parameters::BackfaceCullingMode
+			//		::CullClockwise,
 			.. Default::default()
 		};
 
@@ -693,6 +745,8 @@ fn main()
 
 		target.draw((&tri_vbuf, &tri_nbuf, &tri_sbuf), &tri_ibuf, &program,
 			&uniforms, &params).unwrap();
+
+		// TODO: draw axes, colormap legend
 
 		// Swap buffers
 		target.finish().unwrap();

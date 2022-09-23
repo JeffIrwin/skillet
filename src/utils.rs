@@ -3,7 +3,10 @@
 
 pub fn get_bounds(x: &[f32]) -> (f32, f32)
 {
-	// Is this utils or math?
+	// Does this belong in utils or math?
+	//
+	// This may not handle NaN correctly
+
 	let mut xmin = x[0];
 	let mut xmax = x[0];
 	for i in 1 .. x.len()
@@ -18,11 +21,14 @@ pub fn get_bounds(x: &[f32]) -> (f32, f32)
 
 pub fn ff32(num: f32) -> String
 {
+	// Format float in scientific notation for tabular output
+	//
 	// Rust doesn't do optional args, so we have 2 fn's instead
 	fmt_f32(num, 12, 5, 2)
 }
 
-pub fn fmt_f32(num: f32, width: usize, precision: usize, exp_width: usize) -> String
+pub fn fmt_f32(num: f32, width: usize, precision: usize, exp_width: usize)
+		-> String
 {
 	// https://stackoverflow.com/questions/65264069/alignment-of-floating-point-numbers-printed-in-scientific-notation
 

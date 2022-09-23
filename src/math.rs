@@ -5,9 +5,11 @@ use crate::consts::*;
 
 //==============================================================================
 
-// TODO: consider using nalgebra crate for vector/matrix wrapper types with operator overloading
+// TODO: consider using nalgebra crate for vector/matrix wrapper types with
+// operator overloading
 
-// Can't overload "+" operator because rust makes it impossible by design without a wrapper type :(
+// We can't overload "+" operator because rust makes it impossible by design
+// without a wrapper type :(
 pub fn add(a: &[f32], b: &[f32]) -> Vec<f32>
 {
 	if a.len() != b.len()
@@ -24,6 +26,8 @@ pub fn add(a: &[f32], b: &[f32]) -> Vec<f32>
 	}
 	c
 }
+
+//==============================================================================
 
 pub fn sub(a: &[f32], b: &[f32]) -> Vec<f32>
 {
@@ -42,10 +46,14 @@ pub fn sub(a: &[f32], b: &[f32]) -> Vec<f32>
 	c
 }
 
+//==============================================================================
+
 pub fn neg(a: &[f32]) -> Vec<f32>
 {
 	a.iter().map(|x| -x).collect()
 }
+
+//==============================================================================
 
 pub fn dot(a: &[f32], b: &[f32]) -> f32
 {
@@ -65,10 +73,14 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32
 	d
 }
 
+//==============================================================================
+
 pub fn norm(a: &[f32]) -> f32
 {
 	dot(&a, &a).sqrt()
 }
+
+//==============================================================================
 
 pub fn tnorm((w, h): (u32, u32)) -> f32
 {
@@ -76,20 +88,32 @@ pub fn tnorm((w, h): (u32, u32)) -> f32
 	((w*w) as f32 + (h*h) as f32).sqrt()
 }
 
+//==============================================================================
+
 pub fn normalize(a: &[f32]) -> Vec<f32>
 {
 	let norm = norm(a);
 	a.iter().map(|x| x / norm).collect()
 }
 
+//==============================================================================
+
+pub fn scale_vec(a: &[f32], s: f32) -> Vec<f32>
+{
+	a.iter().map(|x| s * x).collect()
+}
+
+//==============================================================================
+
 pub fn cross(a: &[f32], b: &[f32]) -> [f32; ND]
 {
 	if a.len() != ND || b.len() != ND
 	{
-		// 3D only.  This could return a Return value instead.  I can't put this check into the
-		// function signature because then rust will only accept arrays as args, not slices or
-		// Vecs.
-		panic!("Incorrect length for cross() argument.  Expected length {}", ND);
+		// 3D only.  This could return a Return value instead.  I can't put this
+		// check into the function signature because then rust will only accept
+		// arrays as args, not slices or Vecs.
+		panic!("Incorrect length for cross() argument.  \
+				Expected length {}", ND);
 	}
 
 	[
@@ -129,6 +153,37 @@ pub fn mul_mat4(a: &[[f32; NM]; NM], b: &[[f32; NM]; NM]) -> [[f32; NM]; NM]
 
 //==============================================================================
 
+pub fn scale_matrix(m: &[[f32; NM]; NM], s: f32) -> [[f32; NM]; NM]
+{
+	// Scale in place and apply after m
+
+	//let mut sm = [[0.0; NM]; NM];
+	//for i in 0 .. NM
+	//{
+	//	for j in 0 .. NM
+	//	{
+	//		sm[i][j] = s * m[i][j];
+	//	}
+	//}
+	////println!("sm = {:?}", sm);
+	//sm
+	////mul_mat4(&identity_matrix(), &sm)
+
+
+	// The vertex shader divides by gl_Position.w!  Don't scale the 4th
+	// component
+	let sm =
+		[
+			[   s,  0.0,  0.0, 0.0],
+			[ 0.0,    s,  0.0, 0.0],
+			[ 0.0,  0.0,    s, 0.0],
+			[ 0.0,  0.0,  0.0, 1.0],
+		];
+	mul_mat4(m, &sm)
+}
+
+//==============================================================================
+
 pub fn translate_matrix(m: &[[f32; NM]; NM], u: &[f32]) -> [[f32; NM]; NM]
 {
 	// Translate in place and apply after m
@@ -146,10 +201,12 @@ pub fn translate_matrix(m: &[[f32; NM]; NM], u: &[f32]) -> [[f32; NM]; NM]
 
 //==============================================================================
 
-pub fn rotate_matrix(m: &[[f32; NM]; NM], u: &[f32; ND], theta: f32) -> [[f32; NM]; NM]
+pub fn rotate_matrix(m: &[[f32; NM]; NM], u: &[f32; ND], theta: f32)
+		-> [[f32; NM]; NM]
 {
-	// General axis-angle rotation about an axis vector [x,y,z] by angle theta.  Vector must be
-	// normalized!  Apply rotation r to input matrix m and return m * r.
+	// General axis-angle rotation about an axis vector [x,y,z] by angle theta.
+	// Vector must be normalized!  Apply rotation r to input matrix m and return
+	// m * r.
 
 	// Skip identity/singular case. Caller likely set vector to garbage
 	if theta == 0.0f32
@@ -189,13 +246,15 @@ pub fn rotate_matrix(m: &[[f32; NM]; NM], u: &[f32; ND], theta: f32) -> [[f32; N
 
 //==============================================================================
 
-pub fn view_matrix(position: &[f32; ND], direction: &[f32; ND], up: &[f32; ND]) -> [[f32; NM]; NM]
+pub fn view_matrix(position: &[f32; ND], direction: &[f32; ND], up: &[f32; ND])
+		-> [[f32; NM]; NM]
 {
 	// Ref:
 	//
 	//     https://github.com/JeffIrwin/glfw/blob/9416a43404934cc54136e988a233bee64d4d48fb/deps/linmath.h#L404
 	//
-	// Note this version has a "direction" arg instead of "center", but it's equivalent
+	// Note this version has a "direction" arg instead of "center", but it's
+	// equivalent
 
 	let f = normalize(direction);
 	let s = normalize(&cross(&f, up));
@@ -215,7 +274,8 @@ pub fn view_matrix(position: &[f32; ND], direction: &[f32; ND], up: &[f32; ND]) 
 
 //==============================================================================
 
-pub fn perspective_matrix(fov: f32 , zfar: f32, znear: f32, (width, height): (u32, u32))
+pub fn perspective_matrix(fov: f32, zfar: f32, znear: f32,
+		(width, height): (u32, u32))
 		-> [[f32; NM]; NM]
 {
 	// Right-handed (as god intended)
