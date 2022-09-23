@@ -40,15 +40,7 @@ pub fn get_colormap(display: &glium::Display) -> glium::texture::SrgbTexture1d
 	//	];
 
 	let image = glium::texture::RawImage1d::from_raw_rgba(cmap);
-
-	// TODO: return here
-	let colormap = glium::texture::SrgbTexture1d::new(display, image).unwrap();
-	//let colormap = glium::texture::Texture1d::new(display, image).unwrap();
-
-	//println!("image.w()   = {}", image.width);
-	//println!("image.len() = {}", image.data.len());
-
-	colormap
+	glium::texture::SrgbTexture1d::new(display, image).unwrap()
 }
 
 //==============================================================================

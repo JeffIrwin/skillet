@@ -157,21 +157,7 @@ pub fn scale_matrix(m: &[[f32; NM]; NM], s: f32) -> [[f32; NM]; NM]
 {
 	// Scale in place and apply after m
 
-	//let mut sm = [[0.0; NM]; NM];
-	//for i in 0 .. NM
-	//{
-	//	for j in 0 .. NM
-	//	{
-	//		sm[i][j] = s * m[i][j];
-	//	}
-	//}
-	////println!("sm = {:?}", sm);
-	//sm
-	////mul_mat4(&identity_matrix(), &sm)
-
-
-	// The vertex shader divides by gl_Position.w!  Don't scale the 4th
-	// component
+	// Don't scale the 4th component
 	let sm =
 		[
 			[   s,  0.0,  0.0, 0.0],

@@ -391,13 +391,10 @@ fn main()
 		#version 150
 
 		in vec2 position2;
-		//in vec4 color;
 		in float tex_coord;
-		//out vec4 v_color;
 		out float v_tex_coord;
 
 		void main() {
-			//v_color = color;
 			v_tex_coord = tex_coord;
 			gl_Position = vec4(position2, 0, 1.0);
 		}
@@ -407,13 +404,11 @@ fn main()
 		#version 150
 
 		in float v_tex_coord;
-		//in vec4 v_color;
 		out vec4 color;
 
 		uniform sampler1D bg_tex;
 
 		void main() {
-			//color = v_color;
 			color = texture(bg_tex, v_tex_coord);
 		}
 	"#;
@@ -421,11 +416,6 @@ fn main()
 	// background vertices
 	let bg_verts = vec!
 		[
-			//Node2 { position2:[-1.0, -1.0], color:[0.03, 0.235, 0.235, 1.0]},
-			//Node2 { position2:[ 1.0, -1.0], color:[0.03, 0.350, 0.120, 1.0]},
-			//Node2 { position2:[ 1.0,  1.0], color:[0.03, 0.235, 0.235, 1.0]},
-			//Node2 { position2:[-1.0,  1.0], color:[0.03, 0.120, 0.350, 1.0]},
-
 			Node2 { position2: [-1.0, -1.0], tex_coord: 0.5, },
 			Node2 { position2: [ 1.0, -1.0], tex_coord: 1.0, },
 			Node2 { position2: [ 1.0,  1.0], tex_coord: 0.5, },
@@ -470,8 +460,6 @@ fn main()
 
 	let mut view = view_matrix(&eye, &dir, &up);
 
-	//let eye0 = eye;
-
 	// Mouse button states
 	let mut lmb = false;
 	let mut mmb = false;
@@ -481,19 +469,12 @@ fn main()
 	let mut x0 = 0.0;
 	let mut y0 = 0.0;
 
-	// Mouse scroll position.  Int is safer than float IMO.  The scroll wheel
-	// deltas are always +1 or -1 (or 2, 3, ... if you scroll fast).  For a very
-	// large float, adding 1.0 won't change its value!  Ints won't have that
-	// problem, although they may overflow if you scroll for eons
-	//let mut z0 = 0.0f32;
-
+	// Scroll wheel zoom factor
 	let mut scale_cum = 1.0;
 
 	// This initial value doesn't matter.  It will get set correctly after the
 	// first frame
 	let mut display_diam = 1920.0;
-	//let mut display_w = 1920.0;
-	//let mut display_h = 1080.0;
 
 	// Initial pan to center
 	world = translate_matrix(&world, &neg(&cen));
@@ -587,8 +568,6 @@ fn main()
 						let sensitivity = 1.5 * diam //* scale_cum
 								/ display_diam;
 
-						//let sensitivity = 1.0 * diam;
-
 						let dx =  sensitivity * (x - x0);// / display_h;
 						let dy = -sensitivity * (y - y0);// / display_w;
 
@@ -609,10 +588,8 @@ fn main()
 						// rmb dragging up
 
 						let dz = y - y0;
-						//z0 += dz;
 
 						let sensitivity = 0.003;
-						//eye[2] = eye0[2] - sensitivity * diam * z0 as f32;
 						eye[2] += sensitivity * scale_cum * diam * dz;
 						view = view_matrix(&eye, &dir, &up);
 					}
@@ -623,6 +600,10 @@ fn main()
 				glutin::event::WindowEvent::MouseWheel {delta, ..} =>
 				{
 					// Scroll scaling zoom
+					//
+					// ParaView actually has two ways to "zoom": (1) RMB-drag
+					// moves the eye of the view, while (2) the scroll wheel
+					// scales the world
 
 					//println!("delta = {:?}", delta);
 
@@ -641,38 +622,17 @@ fn main()
 						_ => (0.0)
 					};
 
-					//z0 += dz as i64;
-					//println!("z0 = {}", z0);
-
 					// This sign convention matches ParaView, although the
 					// opposite scroll/zoom convention does exist
 
-					// ParaView actually has two ways to "zoom": (1) RMB-drag
-					// moves the eye of the view, while (2) the scroll wheel
-					// scales the world
-
 					let sensitivity = 0.1;
-
-					//let scale = (sensitivity * (z0 as f32)).exp();
 					let scale = (sensitivity * dz).exp();
-
 					scale_cum *= scale;
 
 					//println!("scale = {}", scale);
 
 					world = scale_matrix(&world, scale);
 					cen = scale_vec(&cen, scale);
-
-					//view = scale_matrix(&view, scale);
-					//println!("scale_cum = {}", scale_cum);
-					//println!("world = {:?}", world);
-
-
-
-					//let sensitivity = 0.1;
-					//eye[2] = eye0[2] - sensitivity * diam * z0 as f32;
-					//view = view_matrix(&eye, &dir, &up);
-
 				},
 				_ => return,
 			},
@@ -689,15 +649,11 @@ fn main()
 		let mut target = display.draw();
 
 		display_diam = tnorm(target.get_dimensions());
-		//display_diam = target.get_dimensions().0 as f32;
-		//display_w = target.get_dimensions().0 as f32;
-		//display_h = target.get_dimensions().1 as f32;
 
 		target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
 
 		let perspective =
 				perspective_matrix(fov, zfar, znear, target.get_dimensions());
-		//let perspective = identity_matrix();
 
 		// Light direction
 		let light = [0.2, -0.6, -1.0f32];//[-1.4, -0.0, -0.7f32];
