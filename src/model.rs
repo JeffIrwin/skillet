@@ -103,6 +103,8 @@ pub struct RenderModel
 
 impl RenderModel
 {
+	//****************
+
 	pub fn new(m: &Model, facade: &dyn glium::backend::Facade) -> RenderModel
 	{
 		// Capacity could be set ahead of time for tris with an extra pass over
@@ -135,9 +137,12 @@ impl RenderModel
 		let mut scalar  = Vec::with_capacity(tris.len());
 		let mut normals = Vec::with_capacity(tris.len());
 
-		// Point data index.  TODO: add arg for this, split into other fn
+		// Point data index
 		let ip = 0;//1;
 
+		// TODO: don't bind scalar like this.  Just call bind_point_data()
+		// before returning
+		//
 		// Get min/max of scalar
 		let (smin, smax) = utils::get_bounds(&m.point_data[ip].data);
 
@@ -198,6 +203,55 @@ impl RenderModel
 				glium::index::PrimitiveType::TrianglesList),
 		}
 	}
+
+	//****************
+
+	pub fn bind_point_data(&mut self, index: usize, m: &Model,
+		facade: &dyn glium::backend::Facade)
+	{
+		// Select point data array by index to bind for graphical display
+		//
+		// TODO: add arg to select vector/tensor component/magnitude
+
+
+		// TODO: can this be done without looking up tris again, and without
+		// saving tris to memory as a struct member?  Can indices be used
+		// instead?  If not, refactor this into a fn also used by new().
+		//
+		// Capacity could be set ahead of time for tris with an extra pass over
+		// cell types to count triangles
+		let mut tris = Vec::new();
+		for i in 0 .. m.types.len()
+		{
+			if m.types[i] == vtkio::model::CellType::Triangle
+			{
+				tris.push(m.cells[ (m.offsets[i as usize] - 3) as usize ] as u32 );
+				tris.push(m.cells[ (m.offsets[i as usize] - 2) as usize ] as u32 );
+				tris.push(m.cells[ (m.offsets[i as usize] - 1) as usize ] as u32 );
+			}
+		}
+		//println!("tris = {:?}", tris);
+
+		let mut scalar  = Vec::with_capacity(tris.len());
+
+		// Get min/max of scalar
+		let (smin, smax) = utils::get_bounds(&m.point_data[index].data);
+
+		for i in 0 .. tris.len() / ND
+		//for i in 0 .. self.vertices.len() / ND
+		{
+			for j in 0 .. ND
+			{
+				let s = m.point_data[index].data[tris[ND*i + j] as usize];
+				scalar.push(Scalar{tex_coord:
+					((s - smin) / (smax - smin)) as f32 });
+			}
+		}
+
+		self.scalar = glium::VertexBuffer::new(facade, &scalar).unwrap();
+	}
+
+	//****************
 }
 
 //==============================================================================
@@ -277,7 +331,7 @@ pub fn import(f: std::path::PathBuf)
 	//println!("point 0 = {:?}", piece.data.point[0]);
 	//println!();
 
-	let mut name: String = "".to_string();
+	//let mut name: String = "".to_string();
 
 	let mut point_data = Vec::new();
 
@@ -373,9 +427,8 @@ pub fn import(f: std::path::PathBuf)
 		};
 	}
 
-	// TODO: display in legend.  Apparently I need another crate for GL text
-	// display
-	println!("Point data name = {}", name);
+	// TODO: display name in legend.  Apparently I need another crate for GL
+	// text display
 
 	println!("point_data.len() = {}", point_data.len());
 	for d in &point_data

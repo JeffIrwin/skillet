@@ -26,7 +26,7 @@ extern crate glium;
 
 fn main()
 {
-	use glium::{glutin, glutin::event_loop::EventLoop, Surface};
+	use glium::{glutin, glutin::event_loop::EventLoop, glutin::event, Surface};
 	use std::path::PathBuf;
 
 	println!();
@@ -112,7 +112,9 @@ fn main()
 	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
 	println!();
 
-	let render_model = RenderModel::new(&model, &display);
+	let mut pindex = 0;
+	let mut render_model = RenderModel::new(&model, &display);
+	render_model.bind_point_data(pindex, &model, &display);
 
 	let vertex_shader_src = r#"
 		#version 150
@@ -425,6 +427,28 @@ fn main()
 
 					world = scale_matrix(&world, scale);
 					cen = scale_vec(&cen, scale);
+				},
+				glutin::event::WindowEvent::KeyboardInput {input, ..} =>
+				{
+					//println!("input = {:?}", input);
+
+					if input.state == PRESSED
+					{
+						match input.virtual_keycode.unwrap()
+						{
+							// TODO: parameterize keycodes
+							event::VirtualKeyCode::P =>
+							{
+								println!("p");
+
+								// Cycle point data display array
+
+								pindex = (pindex + 1) % model.point_data.len();
+								render_model.bind_point_data(pindex, &model, &display);
+							}
+							_ => {}
+						}
+					}
 				},
 				_ => return,
 			},
