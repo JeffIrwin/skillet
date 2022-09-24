@@ -112,9 +112,9 @@ fn main()
 	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
 	println!();
 
-	let mut pindex = 0;
+	let mut dindex = 0;
 	let mut render_model = RenderModel::new(&model, &display);
-	render_model.bind_point_data(pindex, &model, &display);
+	render_model.bind_point_data(dindex, &model, &display);
 
 	let vertex_shader_src = r#"
 		#version 150
@@ -436,15 +436,16 @@ fn main()
 					{
 						match input.virtual_keycode.unwrap()
 						{
-							// TODO: parameterize keycodes
-							event::VirtualKeyCode::P =>
+							// TODO: parameterize keycodes.  Document somewhere
+							event::VirtualKeyCode::D =>
 							{
-								println!("p");
+								println!("d");
 
-								// Cycle point data display array
+								// Cycle point data display array.  TODO: use
+								// same key to cycle through cell data too
 
-								pindex = (pindex + 1) % model.point_data.len();
-								render_model.bind_point_data(pindex, &model, &display);
+								dindex = (dindex + 1) % model.point_data.len();
+								render_model.bind_point_data(dindex, &model, &display);
 							}
 							_ => {}
 						}

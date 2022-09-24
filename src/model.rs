@@ -26,7 +26,7 @@ pub struct Model
 	pub cells  : Vec<u64>,
 	pub offsets: Vec<u64>,
 
-	// Point data
+	// Point data arrays
 	pub point_data: Vec<Data>,
 
 	// TODO: cell data
@@ -34,10 +34,10 @@ pub struct Model
 
 pub struct Data
 {
-	// Point or cell data array
+	// A single point or cell data array
 	pub data: Vec<f32>,
 	pub name: String,
-	pub rank: i32,  // TODO: enum or something
+	pub num_comp: u32,
 }
 
 impl Model
@@ -72,7 +72,7 @@ pub struct Node
 }
 glium::implement_vertex!(Node, position);
 
-// Even vectors and tensors will be rendered as "scalars", since you can
+// Even vectors and tensors are be rendered as "scalars", since you can
 // only colormap one component (or magnitude) at a time, which is a scalar
 #[derive(Copy, Clone)]
 pub struct Scalar
@@ -211,8 +211,14 @@ impl RenderModel
 	{
 		// Select point data array by index to bind for graphical display
 		//
-		// TODO: add arg to select vector/tensor component/magnitude
+		// TODO: add arg "ic" to select vector/tensor component/magnitude.
+		// Panic if out of bounds
 
+		let ic = if m.point_data[index].num_comp > 1 {
+			1
+		} else {
+			0
+		};
 
 		// TODO: can this be done without looking up tris again, and without
 		// saving tris to memory as a struct member?  Can indices be used
@@ -233,16 +239,22 @@ impl RenderModel
 		//println!("tris = {:?}", tris);
 
 		let mut scalar  = Vec::with_capacity(tris.len());
+		let step = m.point_data[index].num_comp as usize;
 
-		// Get min/max of scalar
-		let (smin, smax) = utils::get_bounds(&m.point_data[index].data);
+		// Get min/max of scalar.  TODO: add a magnitude option for vectors (but
+		// not tensors).  An extra pass will be needed to calculate
+		let (smin, smax) = utils::get_bounds(&(m.point_data[index].data
+			.iter().skip(ic).step_by(step).copied().collect::<Vec<f32>>()));
+		//let (smin, smax) = utils::get_bounds(&m.point_data[index].data);
 
 		for i in 0 .. tris.len() / ND
 		//for i in 0 .. self.vertices.len() / ND
 		{
 			for j in 0 .. ND
 			{
-				let s = m.point_data[index].data[tris[ND*i + j] as usize];
+				let s = m.point_data[index].data[
+					step * tris[ND*i + j] as usize + ic];
+
 				scalar.push(Scalar{tex_coord:
 					((s - smin) / (smax - smin)) as f32 });
 			}
@@ -336,21 +348,21 @@ pub fn import(f: std::path::PathBuf)
 	let mut point_data = Vec::new();
 
 	// Iterate attributes like this to get all pointdata (TODO: cell data)
-	for a in &piece.data.point
+	for attrib in &piece.data.point
 	{
-		println!("a");
-		//println!("a = {:?}", a);
+		println!("Attribute:");
+		//println!("attrib = {:?}", attrib);
 
 		// Get the contents of the pointdata array.  This is based on
 		// write_attrib() from vtkio/src/writer.rs
 
-		match a
+		match attrib
 		{
 			Attribute::DataArray(DataArray {elem, data, name}) =>
 			{
 				match elem
 				{
-					ElementType::Scalars{..}
+					ElementType::Scalars{num_comp, ..}
 					=>
 					{
 						println!("Scalars");
@@ -361,35 +373,43 @@ pub fn import(f: std::path::PathBuf)
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
-								rank: 1,
+								num_comp: *num_comp,
 							});
 					}
 
-					//// TODO
-					//ElementType::Vectors{..}
-					//=>
-					//{
-					//	println!("Vectors");
-					//}
-					//ElementType::Tensors{..}
-					//=>
-					//{
-					//	println!("Tensors");
-					//}
-
-					ElementType::Generic{..}
+					ElementType::Vectors{}
 					=>
 					{
-						println!("Generic");
-
-						// TODO: try moving this outside the innermost match{},
-						// for name and data at least, and only set the rank
-						// here
+						println!("Vectors");
 						point_data.push(Data
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
-								rank: 1, // TODO: check size or {..} to get rank
+								num_comp: ND as u32,
+							});
+					}
+
+					ElementType::Tensors{}
+					=>
+					{
+						println!("Tensors");
+						point_data.push(Data
+							{
+								name: name.to_string(),
+								data: data.clone().cast_into::<f32>().unwrap(),
+								num_comp: ND as u32,
+							});
+					}
+
+					ElementType::Generic(num_comp)
+					=>
+					{
+						println!("Generic");
+						point_data.push(Data
+							{
+								name: name.to_string(),
+								data: data.clone().cast_into::<f32>().unwrap(),
+								num_comp: *num_comp,
 							});
 					}
 
@@ -425,6 +445,7 @@ pub fn import(f: std::path::PathBuf)
 			Attribute::Field {..}
 					=> unimplemented!("field attribute for point data")
 		};
+		println!();
 	}
 
 	// TODO: display name in legend.  Apparently I need another crate for GL
@@ -433,9 +454,9 @@ pub fn import(f: std::path::PathBuf)
 	println!("point_data.len() = {}", point_data.len());
 	for d in &point_data
 	{
-		println!("name = {}", d.name);
-		println!("rank = {}", d.rank);
-		println!("len  = {}", d.data.len());
+		println!("name     = {}", d.name);
+		println!("num_comp = {}", d.num_comp);
+		println!("len      = {}", d.data.len());
 		println!();
 	}
 
