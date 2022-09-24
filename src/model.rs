@@ -3,6 +3,7 @@
 
 use crate::consts::*;
 use crate::math::*;
+use crate::utils;
 
 //****************
 
@@ -13,6 +14,8 @@ use vtkio::{model, model::{Attribute, DataArray, DataSet, ElementType, Vtk}};
 
 pub struct Model
 {
+	// The Model struct contains the geometry and its associated point data
+	//
 	// For now, this is just a wrapper for the vtkio vtk struct, although it
 	// could be generalized for other file formats
 
@@ -48,9 +51,6 @@ impl Model
 
 //****************
 
-//#[macro_use]
-//extern crate glium;
-
 #[derive(Copy, Clone, Debug)]
 pub struct Node
 {
@@ -58,15 +58,6 @@ pub struct Node
 	position: [f32; ND]
 }
 glium::implement_vertex!(Node, position);
-
-#[derive(Copy, Clone, Debug)]
-pub struct Node2
-{
-	// 2D node for background
-	position2: [f32; N2],
-	tex_coord: f32,
-}
-glium::implement_vertex!(Node2, position2, tex_coord);
 
 // Even vectors and tensors will be rendered as "scalars", since you can
 // only colormap one component (or magnitude) at a time, which is a scalar
@@ -88,15 +79,19 @@ glium::implement_vertex!(Normal, normal);
 
 pub struct RenderModel
 {
-	pub vertices: glium::VertexBuffer<Node>,
+	// The RenderModel struct is an interface layer between the Model and
+	// glium's GL array/buffer object bindings
+
+	pub vertices: glium::VertexBuffer<Node  >,
+	pub normals : glium::VertexBuffer<Normal>,
+	pub scalar  : glium::VertexBuffer<Scalar>,
+	pub indices : glium::index::NoIndices,
 }
 
 impl RenderModel
 {
-	pub fn new(display: &dyn glium::backend::Facade, m: &Model) -> RenderModel
-	//pub fn new(display: glium::backend::glutin::Display, m: Model) -> RenderModel
+	pub fn new(m: &Model, facade: &dyn glium::backend::Facade) -> RenderModel
 	{
-
 		// Capacity could be set ahead of time for tris with an extra pass over cell
 		// types to count triangles
 		let mut tris = Vec::new();
@@ -122,6 +117,11 @@ impl RenderModel
 		// processed multiple times as the user cycles through results to display
 
 		let mut nodes   = Vec::with_capacity(tris.len());
+		let mut scalar  = Vec::with_capacity(tris.len());
+		let mut normals = Vec::with_capacity(tris.len());
+
+		// Get min/max of scalar
+		let (smin, smax) = utils::get_bounds(&m.pdata);
 
 		for i in 0 .. tris.len() / ND
 		{
@@ -142,8 +142,8 @@ impl RenderModel
 						p[ND*j + 2],
 					]});
 
-				//let s = m.pdata[tris[ND*i + j] as usize];
-				//scalar.push(Scalar{tex_coord: ((s-smin) / (smax-smin)) as f32 });
+				let s = m.pdata[tris[ND*i + j] as usize];
+				scalar.push(Scalar{tex_coord: ((s-smin) / (smax-smin)) as f32 });
 			}
 
 			let p01 = sub(&p[3..6], &p[0..3]);
@@ -154,22 +154,29 @@ impl RenderModel
 			// Use inward normal for RH coordinate system
 			for _j in 0 .. ND
 			{
-				//normals.push(Normal{normal:
-				//	[
-				//		-nrm[0],
-				//		-nrm[1],
-				//		-nrm[2],
-				//	]
-				//});
+				normals.push(Normal{normal:
+					[
+						-nrm[0],
+						-nrm[1],
+						-nrm[2],
+					]
+				});
 			}
 		}
 
+		//println!("node   0 = {:?}", nodes[0]);
+		//println!("node   1 = {:?}", nodes[1]);
+		//println!("node   2 = {:?}", nodes[2]);
+		//println!("normal 0 = {:?}", normals[0]);
+
 		RenderModel
 		{
-			//vertices: glium::VertexBuffer::empty().unwrap(),
+			vertices: glium::VertexBuffer::new(facade, &nodes  ).unwrap(),
+			normals : glium::VertexBuffer::new(facade, &normals).unwrap(),
+			scalar  : glium::VertexBuffer::new(facade, &scalar ).unwrap(),
 
-			//vertices: glium::VertexBuffer::new(&display, &nodes).unwrap(),
-			vertices: glium::VertexBuffer::new(display, &nodes).unwrap(),
+			indices : glium::index::NoIndices(
+				glium::index::PrimitiveType::TrianglesList),
 		}
 	}
 }

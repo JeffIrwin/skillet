@@ -76,16 +76,6 @@ fn main()
 	let colormap = get_colormap(&display);
 	let bg_colormap = get_bg_colormap(&display);
 
-	// TODO: remove these local structs (copied in model.rs) after refactoring
-
-	#[derive(Copy, Clone, Debug)]
-	struct Node
-	{
-		// 3D node
-		position: [f32; ND]
-	}
-	implement_vertex!(Node, position);
-
 	#[derive(Copy, Clone, Debug)]
 	struct Node2
 	{
@@ -94,22 +84,6 @@ fn main()
 		tex_coord: f32,
 	}
 	implement_vertex!(Node2, position2, tex_coord);
-
-	// Even vectors and tensors will be rendered as "scalars", since you can
-	// only colormap one component (or magnitude) at a time, which is a scalar
-	#[derive(Copy, Clone)]
-	struct Scalar
-	{
-		tex_coord: f32,
-	}
-	implement_vertex!(Scalar, tex_coord);
-
-	#[derive(Copy, Clone, Debug)]
-	struct Normal
-	{
-		normal: [f32; ND]
-	}
-	implement_vertex!(Normal, normal);
 
 	// Split position and texture coordinates into separate arrays.  That way we
 	// can change texture coordinates (e.g. rescale a colorbar range or load
@@ -123,9 +97,6 @@ fn main()
 	// here
 
 	//****************
-
-	// Get min/max of scalar
-	let (smin, smax) = get_bounds(&m.pdata);
 
 	// Get point xyz bounds
 
@@ -152,87 +123,7 @@ fn main()
 	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
 	println!();
 
-	// Capacity could be set ahead of time for tris with an extra pass over cell
-	// types to count triangles
-	let mut tris = Vec::new();
-	for i in 0 .. m.types.len()
-	{
-		if m.types[i] == vtkio::model::CellType::Triangle
-		{
-			tris.push(m.cells[ (m.offsets[i as usize] - 3) as usize ] as u32 );
-			tris.push(m.cells[ (m.offsets[i as usize] - 2) as usize ] as u32 );
-			tris.push(m.cells[ (m.offsets[i as usize] - 1) as usize ] as u32 );
-		}
-	}
-	//println!("tris = {:?}", tris);
-
-	// TODO: push other cell types to other buffers.  Draw them with separate
-	// calls to target.draw().  Since vertices are duplicated per cell, there
-	// need to be parallel vertex and scalar arrays too.  We could just push
-	// every cell type to a big list of tris, but that wouldn't allow correct
-	// edge display or advanced filters that treat data at the cell level.
-
-	// TODO: split scalar handling to a separate loop (and eventually a separate
-	// fn).  Mesh geometry will only be loaded once, but scalars may be
-	// processed multiple times as the user cycles through results to display
-
-	//let mut nodes   = Vec::with_capacity(tris.len());
-	let mut scalar  = Vec::with_capacity(tris.len());
-	let mut normals = Vec::with_capacity(tris.len());
-	for i in 0 .. tris.len() / ND
-	{
-		// Local array containing the coordinates of the vertices of a single
-		// triangle
-		let mut p: [f32; ND*ND] = [0.0; ND*ND];
-
-		for j in 0 .. ND
-		{
-			p[ND*j + 0] = m.points[ND*tris[ND*i + j] as usize + 0];
-			p[ND*j + 1] = m.points[ND*tris[ND*i + j] as usize + 1];
-			p[ND*j + 2] = m.points[ND*tris[ND*i + j] as usize + 2];
-
-			//nodes.push(Node{position:
-			//	[
-			//		p[ND*j + 0],
-			//		p[ND*j + 1],
-			//		p[ND*j + 2],
-			//	]});
-
-			let s = m.pdata[tris[ND*i + j] as usize];
-			scalar.push(Scalar{tex_coord: ((s-smin) / (smax-smin)) as f32 });
-		}
-
-		let p01 = sub(&p[3..6], &p[0..3]);
-		let p02 = sub(&p[6..9], &p[0..3]);
-
-		let nrm = normalize(&cross(&p01, &p02));
-
-		// Use inward normal for RH coordinate system
-		for _j in 0 .. ND
-		{
-			normals.push(Normal{normal:
-				[
-					-nrm[0],
-					-nrm[1],
-					-nrm[2],
-				]
-			});
-		}
-	}
-
-	//println!("node   0 = {:?}", nodes[0]);
-	//println!("node   1 = {:?}", nodes[1]);
-	//println!("node   2 = {:?}", nodes[2]);
-	//println!("normal 0 = {:?}", normals[0]);
-
-	//let     tri_vbuf = glium::VertexBuffer::new(&display, &nodes  ).unwrap();
-	let rm = RenderModel::new(&display, &m);
-
-	let     tri_nbuf = glium::VertexBuffer::new(&display, &normals).unwrap();
-	let mut tri_sbuf = glium::VertexBuffer::new(&display, &scalar ).unwrap();
-
-	let     tri_ibuf = glium::index::NoIndices(
-			glium::index::PrimitiveType::TrianglesList);
+	let rm = RenderModel::new(&m, &display);
 
 	let vertex_shader_src = r#"
 		#version 150
@@ -611,8 +502,9 @@ fn main()
 		// Clearing the depth again here forces the background to the back
 		target.clear_depth(1.0);
 
-		target.draw((&rm.vertices, &tri_nbuf, &tri_sbuf), &tri_ibuf, &program,
-			&uniforms, &params).unwrap();
+		// TODO: move this to a RenderModel method?
+		target.draw((&rm.vertices, &rm.normals, &rm.scalar), &rm.indices,
+			&program, &uniforms, &params).unwrap();
 
 		// TODO: draw axes, colormap legend
 
@@ -620,7 +512,7 @@ fn main()
 		target.finish().unwrap();
 
 		// TODO: take screenshot and compare for testing (just don't do it
-		// everytime in the main loop)
+		// everytime in the main loop.  maybe do that in a separate test/example)
 	});
 }
 
