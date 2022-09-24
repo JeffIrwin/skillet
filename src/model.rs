@@ -26,10 +26,8 @@ pub struct Model
 	pub cells  : Vec<u64>,
 	pub offsets: Vec<u64>,
 
-	// TODO: remove after encapsulating in pd Vec
-	pub pdata: Vec<f32>,
-
-	pub pd: Vec<Data>,
+	// Point data
+	pub point_data: Vec<Data>,
 
 	// TODO: cell data
 }
@@ -55,8 +53,7 @@ impl Model
 			cells  : Vec::new(),
 			offsets: Vec::new(),
 
-			pdata: Vec::new(),
-			pd: Vec::new(),
+			point_data: Vec::new(),
 		}
 	}
 }
@@ -142,7 +139,7 @@ impl RenderModel
 		let ip = 0;//1;
 
 		// Get min/max of scalar
-		let (smin, smax) = utils::get_bounds(&m.pd[ip].data);
+		let (smin, smax) = utils::get_bounds(&m.point_data[ip].data);
 
 		for i in 0 .. tris.len() / ND
 		{
@@ -163,7 +160,7 @@ impl RenderModel
 						p[ND*j + 2],
 					]});
 
-				let s = m.pd[ip].data[tris[ND*i + j] as usize];
+				let s = m.point_data[ip].data[tris[ND*i + j] as usize];
 				scalar.push(Scalar{tex_coord:
 					((s - smin) / (smax - smin)) as f32 });
 			}
@@ -254,7 +251,11 @@ pub fn import(f: std::path::PathBuf)
 	//let points = piece.points.cast_into::<f32>().unwrap();
 	//m.points = points;
 
+	// TODO: instead of making a new empty Model here and setting members one at
+	// a time, set them all at the end (like RenderModel) and eliminate the
+	// new() fn
 	let mut m = Model::new();
+
 	m.points = piece.points.cast_into::<f32>().unwrap();
 
 	//println!("m.points = {:?}", m.points);
@@ -277,9 +278,8 @@ pub fn import(f: std::path::PathBuf)
 	//println!();
 
 	let mut name: String = "".to_string();
-	let mut pdata = Vec::new();
 
-	let mut pd = Vec::new();
+	let mut point_data = Vec::new();
 
 	// Iterate attributes like this to get all pointdata (TODO: cell data)
 	for a in &piece.data.point
@@ -290,8 +290,7 @@ pub fn import(f: std::path::PathBuf)
 		// Get the contents of the pointdata array.  This is based on
 		// write_attrib() from vtkio/src/writer.rs
 
-		//let (name, pdata) = match &piece.data.point[0]
-		(name, pdata) = match a
+		match a
 		{
 			Attribute::DataArray(DataArray {elem, data, name}) =>
 			{
@@ -304,14 +303,12 @@ pub fn import(f: std::path::PathBuf)
 
 						// Cast everything to f32
 
-						pd.push(Data
+						point_data.push(Data
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
 								rank: 1,
 							});
-
-						(name.to_string(), data.clone().cast_into::<f32>().unwrap())
 					}
 
 					//// TODO
@@ -319,13 +316,11 @@ pub fn import(f: std::path::PathBuf)
 					//=>
 					//{
 					//	println!("Vectors");
-					//	(name, data.clone().cast_into::<f32>().unwrap())
 					//}
 					//ElementType::Tensors{..}
 					//=>
 					//{
 					//	println!("Tensors");
-					//	(name, data.clone().cast_into::<f32>().unwrap())
 					//}
 
 					ElementType::Generic{..}
@@ -333,48 +328,44 @@ pub fn import(f: std::path::PathBuf)
 					{
 						println!("Generic");
 
-						pd.push(Data
+						// TODO: try moving this outside the innermost match{},
+						// for name and data at least, and only set the rank
+						// here
+						point_data.push(Data
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
 								rank: 1, // TODO: check size or {..} to get rank
 							});
-
-						(name.to_string(), data.clone().cast_into::<f32>().unwrap())
 					}
 
 					//ElementType::ColorScalars{..}
 					//=>
 					//{
 					//	println!("ColorScalars");
-					//	(name, data.clone().cast_into::<f32>().unwrap())
 					//}
 
 					//ElementType::LookupTable{..}
 					//=>
 					//{
 					//	println!("LookupTable");
-					//	(name, data.clone().cast_into::<f32>().unwrap())
 					//}
 
 					//ElementType::Normals{..}
 					//=>
 					//{
 					//	println!("Normals");
-					//	(name, data.clone().cast_into::<f32>().unwrap())
 					//}
 
 					//ElementType::TCoords{..}
 					//=>
 					//{
 					//	println!("TCoords");
-					//	(name, data.clone().cast_into::<f32>().unwrap())
 					//}
 
-					// TODO: just ignore and don't push anything that I haven't
-					// handled instead of panic'ing on todo!()
-					_ => todo!()
-					//_ => (&"".to_string().to_owned(), Vec::new())
+					// Just ignore and don't push anything that I haven't
+					// handled
+					_ => ()
 				}
 			}
 			Attribute::Field {..}
@@ -382,21 +373,20 @@ pub fn import(f: std::path::PathBuf)
 		};
 	}
 
-	// TODO: display in legend
+	// TODO: display in legend.  Apparently I need another crate for GL text
+	// display
 	println!("Point data name = {}", name);
 
-	println!("pd.len() = {}", pd.len());
-	for d in &pd
+	println!("point_data.len() = {}", point_data.len());
+	for d in &point_data
 	{
 		println!("name = {}", d.name);
 		println!("rank = {}", d.rank);
+		println!("len  = {}", d.data.len());
 		println!();
 	}
 
-	//println!("pdata = {:?}", pdata);
-
-	m.pdata = pdata;
-	m.pd = pd;
+	m.point_data = point_data;
 
 	m
 }
