@@ -7,17 +7,17 @@ pub fn get_exe_base(default: &str) -> String
 {
 	// Safely get the basename of this exe or return a default
 
-	let exe = match env::current_exe().ok()
+	let current_exe = match env::current_exe().ok()
 	{
 		Some(inner) => inner,
 		None        => return default.to_string(),
 	};
-	let exe_opt = match exe.file_name()
+	let file_name = match current_exe.file_name()
 	{
 		Some(inner) => inner,
 		None        => return default.to_string(),
 	};
-	match exe_opt.to_str()
+	match file_name.to_str()
 	{
 		Some(inner) => inner.to_string(),
 		None        => default.to_string(),

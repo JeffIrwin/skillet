@@ -52,12 +52,14 @@ fn main()
 
 	let m = import(file_path);
 
+	// TODO: refactor to window init fn
+
 	let event_loop = EventLoop::new();
+
+	// TODO: cleanup some of these use paths
 
 	// include_bytes!() statically includes the file relative to this source
 	// path at compile time
-
-	// TODO: cleanup some of these use paths
 	let icon = image::load(Cursor::new(&include_bytes!("../res/icon.png")),
 			image::ImageFormat::Png).unwrap().to_rgba8();
 	let winicon = Some(glutin::window::Icon::from_rgba(icon.to_vec(),
@@ -73,6 +75,8 @@ fn main()
 
 	let colormap = get_colormap(&display);
 	let bg_colormap = get_bg_colormap(&display);
+
+	// TODO: remove these local structs (copied in model.rs) after refactoring
 
 	#[derive(Copy, Clone, Debug)]
 	struct Node
@@ -172,7 +176,7 @@ fn main()
 	// fn).  Mesh geometry will only be loaded once, but scalars may be
 	// processed multiple times as the user cycles through results to display
 
-	let mut nodes   = Vec::with_capacity(tris.len());
+	//let mut nodes   = Vec::with_capacity(tris.len());
 	let mut scalar  = Vec::with_capacity(tris.len());
 	let mut normals = Vec::with_capacity(tris.len());
 	for i in 0 .. tris.len() / ND
@@ -187,12 +191,12 @@ fn main()
 			p[ND*j + 1] = m.points[ND*tris[ND*i + j] as usize + 1];
 			p[ND*j + 2] = m.points[ND*tris[ND*i + j] as usize + 2];
 
-			nodes.push(Node{position:
-				[
-					p[ND*j + 0],
-					p[ND*j + 1],
-					p[ND*j + 2],
-				]});
+			//nodes.push(Node{position:
+			//	[
+			//		p[ND*j + 0],
+			//		p[ND*j + 1],
+			//		p[ND*j + 2],
+			//	]});
 
 			let s = m.pdata[tris[ND*i + j] as usize];
 			scalar.push(Scalar{tex_coord: ((s-smin) / (smax-smin)) as f32 });
@@ -221,7 +225,9 @@ fn main()
 	//println!("node   2 = {:?}", nodes[2]);
 	//println!("normal 0 = {:?}", normals[0]);
 
-	let     tri_vbuf = glium::VertexBuffer::new(&display, &nodes  ).unwrap();
+	//let     tri_vbuf = glium::VertexBuffer::new(&display, &nodes  ).unwrap();
+	let rm = RenderModel::new(&display, &m);
+
 	let     tri_nbuf = glium::VertexBuffer::new(&display, &normals).unwrap();
 	let mut tri_sbuf = glium::VertexBuffer::new(&display, &scalar ).unwrap();
 
@@ -605,7 +611,7 @@ fn main()
 		// Clearing the depth again here forces the background to the back
 		target.clear_depth(1.0);
 
-		target.draw((&tri_vbuf, &tri_nbuf, &tri_sbuf), &tri_ibuf, &program,
+		target.draw((&rm.vertices, &tri_nbuf, &tri_sbuf), &tri_ibuf, &program,
 			&uniforms, &params).unwrap();
 
 		// TODO: draw axes, colormap legend
