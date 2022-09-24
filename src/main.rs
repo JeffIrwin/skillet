@@ -2,6 +2,7 @@
 //==============================================================================
 
 // Standard
+use std::env;
 use std::io::Cursor;
 
 //****************
@@ -30,14 +31,24 @@ fn main()
 	println!("{}:  {}", ME, mev!());
 	println!();
 
+	// Switch to clap if args become more complicated than a single filename
+	let args: Vec<String> = env::args().collect();
+	if args.len() < 2
+	{
+		println!("Error: bad cmd args");
+		return;
+	}
+
+	let file_path = PathBuf::from(args[1].clone());
+
 	use glium::{glutin, glutin::event_loop::EventLoop, Surface};
 
-	//let event_loop = glutin::event_loop::EventLoop::new();
 	let event_loop = EventLoop::new();
 
 	// include_bytes!() statically includes the file relative to this source
 	// path at compile time
 
+	// TODO: cleanup some of these use paths
 	let icon = image::load(Cursor::new(&include_bytes!("../res/icon.png")),
 			image::ImageFormat::Png).unwrap().to_rgba8();
 	let winicon = Some(glutin::window::Icon::from_rgba(icon.to_vec(),
@@ -102,9 +113,9 @@ fn main()
 
 	//****************
 
-	// TODO: cmd arg for VTK filename.  Refactor loading to fn
+	// TODO: move this commented list to run script
 
-	let file_path = PathBuf::from("./res/teapot.vtu");
+	//let file_path = PathBuf::from("./res/teapot.vtu");
 	//let file_path = PathBuf::from("./res/ico64.vtu");
 	//let file_path = PathBuf::from("./res/ico.vtu");
 
