@@ -15,15 +15,11 @@ use crate::model::*;
 use crate::utils::*;
 
 //****************
-// 3Ps
+// 3P(s)
 //****************
 
 #[macro_use]
 extern crate glium;
-
-//****************
-
-use vtkio::model::*;
 
 //==============================================================================
 
@@ -34,9 +30,10 @@ fn main()
 	println!("{}:  {}", ME, mev!());
 	println!();
 
-	use glium::{glutin, Surface};
+	use glium::{glutin, glutin::event_loop::EventLoop, Surface};
 
-	let event_loop = glutin::event_loop::EventLoop::new();
+	//let event_loop = glutin::event_loop::EventLoop::new();
+	let event_loop = EventLoop::new();
 
 	// include_bytes!() statically includes the file relative to this source
 	// path at compile time
@@ -158,7 +155,7 @@ fn main()
 	let mut tris = Vec::new();
 	for i in 0 .. m.types.len()
 	{
-		if m.types[i] == CellType::Triangle
+		if m.types[i] == vtkio::model::CellType::Triangle
 		{
 			tris.push(m.cells[ (m.offsets[i as usize] - 3) as usize ] as u32 );
 			tris.push(m.cells[ (m.offsets[i as usize] - 2) as usize ] as u32 );
@@ -349,8 +346,8 @@ fn main()
 	let bg_program = glium::Program::from_source(&display, bg_vertex_shader_src,
 			bg_fragment_shader_src, None).unwrap();
 
-	// Don't scale or translate here.  Model should always be identity unless
-	// I add an option for a user to move one model relative to others
+	// Don't scale or translate here.  Model matrix should always be identity
+	// unless I add an option for a user to move one model relative to others
 	let model = identity_matrix();
 
 	// This is where transformations happen
@@ -391,8 +388,8 @@ fn main()
 	world = translate_matrix(&world, &neg(&cen));
 	cen = vec![0.0; ND];
 
-	const PRESSED: glium::glutin::event::ElementState
-	             = glium::glutin::event::ElementState::Pressed;
+	const PRESSED: glutin::event::ElementState
+	             = glutin::event::ElementState::Pressed;
 
 	println!("{}:  Starting main loop", ME);
 	println!();
@@ -423,15 +420,15 @@ fn main()
 
 					match button
 					{
-						glium::glutin::event::MouseButton::Left =>
+						glutin::event::MouseButton::Left =>
 						{
 							lmb = state == PRESSED;
 						},
-						glium::glutin::event::MouseButton::Right =>
+						glutin::event::MouseButton::Right =>
 						{
 							rmb = state == PRESSED;
 						},
-						glium::glutin::event::MouseButton::Middle =>
+						glutin::event::MouseButton::Middle =>
 						{
 							mmb = state == PRESSED;
 						},

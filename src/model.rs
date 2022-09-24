@@ -1,7 +1,7 @@
 
 //****************
 
-use vtkio::model::*;
+use vtkio::{model, model::{Attribute, DataArray, DataSet, ElementType, Vtk}};
 
 //==============================================================================
 
@@ -13,7 +13,7 @@ pub struct Model
 	pub points: Vec<f32>,
 
 	// TODO: abstract away from vtkio's types
-	pub types  : Vec<vtkio::model::CellType>,
+	pub types  : Vec<model::CellType>,
 	pub cells  : Vec<u64>,
 	pub offsets: Vec<u64>,
 
