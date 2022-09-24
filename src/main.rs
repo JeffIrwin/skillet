@@ -50,7 +50,7 @@ fn main()
 
 	let file_path = PathBuf::from(args[1].clone());
 
-	let m = import(file_path);
+	let model = import(file_path);
 
 	// TODO: refactor to window init fn
 
@@ -89,13 +89,13 @@ fn main()
 
 	// Get point xyz bounds
 
-	let (xmin, xmax) = get_bounds(&(m.points.iter().skip(0)
+	let (xmin, xmax) = get_bounds(&(model.points.iter().skip(0)
 			.step_by(ND).copied().collect::<Vec<f32>>()));
 
-	let (ymin, ymax) = get_bounds(&(m.points.iter().skip(1)
+	let (ymin, ymax) = get_bounds(&(model.points.iter().skip(1)
 			.step_by(ND).copied().collect::<Vec<f32>>()));
 
-	let (zmin, zmax) = get_bounds(&(m.points.iter().skip(2)
+	let (zmin, zmax) = get_bounds(&(model.points.iter().skip(2)
 			.step_by(ND).copied().collect::<Vec<f32>>()));
 
 	let xc = 0.5 * (xmin + xmax);
@@ -112,7 +112,7 @@ fn main()
 	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
 	println!();
 
-	let rm = RenderModel::new(&m, &display);
+	let render_model = RenderModel::new(&model, &display);
 
 	let vertex_shader_src = r#"
 		#version 150
@@ -491,8 +491,14 @@ fn main()
 		// Clearing the depth again here forces the background to the back
 		target.clear_depth(1.0);
 
-		// TODO: move this to a RenderModel method?
-		target.draw((&rm.vertices, &rm.normals, &rm.scalar), &rm.indices,
+		// TODO: move this to a RenderModel method?  Either pass program,
+		// uniforms, and params as args or encapsulate them in RenderModel
+		// struct
+		target.draw((
+			&render_model.vertices,
+			&render_model.normals,
+			&render_model.scalar),
+			&render_model.indices,
 			&program, &uniforms, &params).unwrap();
 
 		// TODO: draw axes, colormap legend

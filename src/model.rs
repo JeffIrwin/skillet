@@ -261,34 +261,92 @@ pub fn import(f: std::path::PathBuf)
 	//println!("point 0 = {:?}", piece.data.point[0]);
 	//println!();
 
-	//// TODO: iterate attributes like this to get all pointdata (and cell data)
-	//for a in &piece.data.point
-	//{
-	//	println!("a = {:?}", a);
-	//}
+	let mut name: String = "".to_string();
+	let mut pdata = Vec::new();
 
-	// Get the contents of the first pointdata array, assumining it's a scalar.
-	// This is based on write_attrib() from vtkio/src/writer.rs
-	let (name, pdata) = match &piece.data.point[0]
+	// Iterate attributes like this to get all pointdata (TODO: cell data)
+	for a in &piece.data.point
 	{
-		Attribute::DataArray(DataArray {elem, data, name}) =>
-		{
-			match elem
-			{
-				ElementType::Scalars{..}
-				=>
-				{
-					// Cast everything to f32
-					(name, data.clone().cast_into::<f32>().unwrap())
-				}
+		println!("a");
+		//println!("a = {:?}", a);
 
-				// TODO: vectors, tensors
-				_ => todo!()
+		// Get the contents of the pointdata array.  This is based on
+		// write_attrib() from vtkio/src/writer.rs
+
+		//let (name, pdata) = match &piece.data.point[0]
+		(name, pdata) = match a
+		{
+			Attribute::DataArray(DataArray {elem, data, name}) =>
+			{
+				match elem
+				{
+					ElementType::Scalars{..}
+					=>
+					{
+						println!("Scalars");
+						// Cast everything to f32
+						(name.to_string(), data.clone().cast_into::<f32>().unwrap())
+					}
+
+					//// TODO
+					//ElementType::Vectors{..}
+					//=>
+					//{
+					//	println!("Vectors");
+					//	(name, data.clone().cast_into::<f32>().unwrap())
+					//}
+					//ElementType::Tensors{..}
+					//=>
+					//{
+					//	println!("Tensors");
+					//	(name, data.clone().cast_into::<f32>().unwrap())
+					//}
+
+					ElementType::Generic{..}
+					=>
+					{
+						println!("Generic");
+						(name.to_string(), data.clone().cast_into::<f32>().unwrap())
+					}
+
+					//ElementType::ColorScalars{..}
+					//=>
+					//{
+					//	println!("ColorScalars");
+					//	(name, data.clone().cast_into::<f32>().unwrap())
+					//}
+
+					//ElementType::LookupTable{..}
+					//=>
+					//{
+					//	println!("LookupTable");
+					//	(name, data.clone().cast_into::<f32>().unwrap())
+					//}
+
+					//ElementType::Normals{..}
+					//=>
+					//{
+					//	println!("Normals");
+					//	(name, data.clone().cast_into::<f32>().unwrap())
+					//}
+
+					//ElementType::TCoords{..}
+					//=>
+					//{
+					//	println!("TCoords");
+					//	(name, data.clone().cast_into::<f32>().unwrap())
+					//}
+
+					// TODO: just ignore and don't push anything that I haven't
+					// handled instead of panic'ing on todo!()
+					_ => todo!()
+					//_ => (&"".to_string().to_owned(), Vec::new())
+				}
 			}
-		}
-		Attribute::Field {..}
-				=> unimplemented!("field attribute for point data")
-	};
+			Attribute::Field {..}
+					=> unimplemented!("field attribute for point data")
+		};
+	}
 
 	// TODO: display in legend
 	println!("Point data name = {}", name);
