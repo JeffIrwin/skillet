@@ -78,10 +78,6 @@ pub fn import(f: std::path::PathBuf)
 		unimplemented!("multiple pieces");
 	}
 
-	//pieces
-	//let mut m = Model::new();
-	//m
-
 	let piece = pieces[0].load_piece_data(None).unwrap();
 
 	println!("Number of points = {}", piece.num_points());
@@ -91,7 +87,7 @@ pub fn import(f: std::path::PathBuf)
 	//let points = piece.points.cast_into::<f32>().unwrap();
 	//m.points = points;
 
-	let mut m: Model = Model::new();
+	let mut m = Model::new();
 	m.points = piece.points.cast_into::<f32>().unwrap();
 
 	//println!("m.points = {:?}", m.points);

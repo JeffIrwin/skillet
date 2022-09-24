@@ -123,117 +123,7 @@ fn main()
 
 	//let file_path = PathBuf::from("./scratch/a.vtu");
 
-
-
-	//****************
-	//****************
-	//****************
-
-
-
 	let m = import(file_path);
-
-
-
-	//****************
-	//****************
-	//****************
-
-
-
-	//****************
-
-	//let vtk = Vtk::import(&file_path).expect(&format!(
-	//		"Failed to load file: {:?}", file_path));
-
-	////let file_out = PathBuf::from("./scratch/ascii.vtu");
-	////vtk.export_ascii(&file_out)
-	////	.expect(&format!("Failed to save file: {:?}", file_out));
-	////return;
-
-	//// TODO: match UnstructuredGrid vs PolyData, etc.
-	//let pieces = if let DataSet::UnstructuredGrid { pieces, ..} = vtk.data
-	//{
-	//	pieces
-	//}
-	//else
-	//{
-	//	panic!("UnstructuredGrid not found.  Wrong vtk data type");
-	//};
-
-	//println!("Number of pieces = {}", pieces.len());
-
-	//if pieces.len() > 1
-	//{
-	//	// To do?  Render each piece as if it's a totally separate VTK file.
-	//	// They could have unrelated numbers of points, number and type of
-	//	// results, etc.
-	//	unimplemented!("multiple pieces");
-	//}
-
-	//let pieces = import(file_path);
-
-	//let piece = pieces[0].load_piece_data(None).unwrap();
-
-	//println!("Number of points = {}", piece.num_points());
-	//println!("Number of cells  = {}", piece.cells.types.len());
-	//println!();
-
-	////let points = piece.points.cast_into::<f32>().unwrap();
-	////m.points = points;
-
-	//let mut m: Model = Model::new();
-	//m.points = piece.points.cast_into::<f32>().unwrap();
-
-	////println!("m.points = {:?}", m.points);
-	////println!();
-
-	//// Convert legacy into XML so we don't have to match conditionally
-	//let cells = piece.cells.cell_verts.into_xml();
-
-	////println!("connectivity = {:?}", cells.0);
-	////println!("types        = {:?}", piece.cells.types);
-	////println!("offsets      = {:?}", cells.1);
-	////println!();
-
-	////println!("point 0 = {:?}", piece.data.point[0]);
-	////println!();
-
-	////// TODO: iterate attributes like this to get all pointdata (and cell data)
-	////for a in &piece.data.point
-	////{
-	////	println!("a = {:?}", a);
-	////}
-
-	//// Get the contents of the first pointdata array, assumining it's a scalar.
-	//// This is based on write_attrib() from vtkio/src/writer.rs
-	//let (name, pdata) = match &piece.data.point[0]
-	//{
-	//	Attribute::DataArray(DataArray {elem, data, name}) =>
-	//	{
-	//		match elem
-	//		{
-	//			ElementType::Scalars{..}
-	//			=>
-	//			{
-	//				// Cast everything to f32
-	//				(name, data.clone().cast_into::<f32>().unwrap())
-	//			}
-
-	//			// TODO: vectors, tensors
-	//			_ => todo!()
-	//		}
-	//	}
-	//	Attribute::Field {..}
-	//			=> unimplemented!("field attribute for point data")
-	//};
-
-	//// TODO: display in legend
-	//println!("Point data name = {}", name);
-
-	////println!("pdata = {:?}", pdata);
-
-	//****************
 
 	// Get min/max of scalar
 	let (smin, smax) = get_bounds(&m.pdata);
@@ -270,10 +160,6 @@ fn main()
 	{
 		if m.types[i] == CellType::Triangle
 		{
-			//tris.push(cells.0[ (cells.1[i as usize] - 3) as usize ] as u32 );
-			//tris.push(cells.0[ (cells.1[i as usize] - 2) as usize ] as u32 );
-			//tris.push(cells.0[ (cells.1[i as usize] - 1) as usize ] as u32 );
-
 			tris.push(m.cells[ (m.offsets[i as usize] - 3) as usize ] as u32 );
 			tris.push(m.cells[ (m.offsets[i as usize] - 2) as usize ] as u32 );
 			tris.push(m.cells[ (m.offsets[i as usize] - 1) as usize ] as u32 );
