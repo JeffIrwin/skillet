@@ -26,9 +26,20 @@ pub struct Model
 	pub cells  : Vec<u64>,
 	pub offsets: Vec<u64>,
 
+	// TODO: remove after encapsulating in pd Vec
 	pub pdata: Vec<f32>,
 
+	pub pd: Vec<Data>,
+
 	// TODO: cell data
+}
+
+pub struct Data
+{
+	// Point or cell data array
+	pub data: Vec<f32>,
+	pub name: String,
+	pub rank: i32,  // TODO: enum or something
 }
 
 impl Model
@@ -45,6 +56,7 @@ impl Model
 			offsets: Vec::new(),
 
 			pdata: Vec::new(),
+			pd: Vec::new(),
 		}
 	}
 }
@@ -126,8 +138,11 @@ impl RenderModel
 		let mut scalar  = Vec::with_capacity(tris.len());
 		let mut normals = Vec::with_capacity(tris.len());
 
+		// Point data index.  TODO: add arg for this, split into other fn
+		let ip = 0;//1;
+
 		// Get min/max of scalar
-		let (smin, smax) = utils::get_bounds(&m.pdata);
+		let (smin, smax) = utils::get_bounds(&m.pd[ip].data);
 
 		for i in 0 .. tris.len() / ND
 		{
@@ -148,7 +163,7 @@ impl RenderModel
 						p[ND*j + 2],
 					]});
 
-				let s = m.pdata[tris[ND*i + j] as usize];
+				let s = m.pd[ip].data[tris[ND*i + j] as usize];
 				scalar.push(Scalar{tex_coord:
 					((s - smin) / (smax - smin)) as f32 });
 			}
@@ -264,6 +279,8 @@ pub fn import(f: std::path::PathBuf)
 	let mut name: String = "".to_string();
 	let mut pdata = Vec::new();
 
+	let mut pd = Vec::new();
+
 	// Iterate attributes like this to get all pointdata (TODO: cell data)
 	for a in &piece.data.point
 	{
@@ -284,7 +301,16 @@ pub fn import(f: std::path::PathBuf)
 					=>
 					{
 						println!("Scalars");
+
 						// Cast everything to f32
+
+						pd.push(Data
+							{
+								name: name.to_string(),
+								data: data.clone().cast_into::<f32>().unwrap(),
+								rank: 1,
+							});
+
 						(name.to_string(), data.clone().cast_into::<f32>().unwrap())
 					}
 
@@ -306,6 +332,14 @@ pub fn import(f: std::path::PathBuf)
 					=>
 					{
 						println!("Generic");
+
+						pd.push(Data
+							{
+								name: name.to_string(),
+								data: data.clone().cast_into::<f32>().unwrap(),
+								rank: 1, // TODO: check size or {..} to get rank
+							});
+
 						(name.to_string(), data.clone().cast_into::<f32>().unwrap())
 					}
 
@@ -351,9 +385,18 @@ pub fn import(f: std::path::PathBuf)
 	// TODO: display in legend
 	println!("Point data name = {}", name);
 
+	println!("pd.len() = {}", pd.len());
+	for d in &pd
+	{
+		println!("name = {}", d.name);
+		println!("rank = {}", d.rank);
+		println!();
+	}
+
 	//println!("pdata = {:?}", pdata);
 
 	m.pdata = pdata;
+	m.pd = pd;
 
 	m
 }
