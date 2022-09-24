@@ -3,6 +3,14 @@
 # VTK filename to be visualized
 f=./res/teapot.vtu
 
+## A vector result can be created in ParaView with Calculator -> coords.  Then
+## a tensor result can be created with Python calculator -> gradient(MyVector).
+##
+## Ref:
+##     https://vtk.org/Wiki/Python_Calculator#A_more_complex_example
+##
+#f=./res/ico-tensor.vtu
+
 #f=./res/ico64.vtu
 #f=./res/ico.vtu
 #
