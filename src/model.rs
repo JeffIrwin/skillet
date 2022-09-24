@@ -37,7 +37,7 @@ pub struct Data
 	// A single point or cell data array
 	pub data: Vec<f32>,
 	pub name: String,
-	pub num_comp: u32,
+	pub num_comp: usize,
 }
 
 impl Model
@@ -206,19 +206,15 @@ impl RenderModel
 
 	//****************
 
-	pub fn bind_point_data(&mut self, index: usize, m: &Model,
+	pub fn bind_point_data(&mut self, index: usize, comp: usize, m: &Model,
 		facade: &dyn glium::backend::Facade)
 	{
 		// Select point data array by index to bind for graphical display
-		//
-		// TODO: add arg "ic" to select vector/tensor component/magnitude.
-		// Panic if out of bounds
 
-		let ic = if m.point_data[index].num_comp > 1 {
-			1
-		} else {
-			0
-		};
+		if comp >= m.point_data[index].num_comp
+		{
+			panic!("Component is out of bounds");
+		}
 
 		// TODO: can this be done without looking up tris again, and without
 		// saving tris to memory as a struct member?  Can indices be used
@@ -239,21 +235,20 @@ impl RenderModel
 		//println!("tris = {:?}", tris);
 
 		let mut scalar  = Vec::with_capacity(tris.len());
-		let step = m.point_data[index].num_comp as usize;
+		let step = m.point_data[index].num_comp;
 
 		// Get min/max of scalar.  TODO: add a magnitude option for vectors (but
 		// not tensors).  An extra pass will be needed to calculate
 		let (smin, smax) = utils::get_bounds(&(m.point_data[index].data
-			.iter().skip(ic).step_by(step).copied().collect::<Vec<f32>>()));
+			.iter().skip(comp).step_by(step).copied().collect::<Vec<f32>>()));
 		//let (smin, smax) = utils::get_bounds(&m.point_data[index].data);
 
 		for i in 0 .. tris.len() / ND
-		//for i in 0 .. self.vertices.len() / ND
 		{
 			for j in 0 .. ND
 			{
 				let s = m.point_data[index].data[
-					step * tris[ND*i + j] as usize + ic];
+					step * tris[ND*i + j] as usize + comp];
 
 				scalar.push(Scalar{tex_coord:
 					((s - smin) / (smax - smin)) as f32 });
@@ -373,7 +368,7 @@ pub fn import(f: std::path::PathBuf)
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
-								num_comp: *num_comp,
+								num_comp: *num_comp as usize,
 							});
 					}
 
@@ -385,7 +380,7 @@ pub fn import(f: std::path::PathBuf)
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
-								num_comp: ND as u32,
+								num_comp: ND,
 							});
 					}
 
@@ -397,7 +392,7 @@ pub fn import(f: std::path::PathBuf)
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
-								num_comp: ND as u32,
+								num_comp: ND * ND,
 							});
 					}
 
@@ -409,7 +404,7 @@ pub fn import(f: std::path::PathBuf)
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
-								num_comp: *num_comp,
+								num_comp: *num_comp as usize,
 							});
 					}
 

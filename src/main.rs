@@ -112,9 +112,12 @@ fn main()
 	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
 	println!();
 
+	// Data array and component indices for color contour
 	let mut dindex = 0;
+	let mut cindex = 0;
+
 	let mut render_model = RenderModel::new(&model, &display);
-	render_model.bind_point_data(dindex, &model, &display);
+	render_model.bind_point_data(dindex, cindex, &model, &display);
 
 	let vertex_shader_src = r#"
 		#version 150
@@ -437,6 +440,7 @@ fn main()
 						match input.virtual_keycode.unwrap()
 						{
 							// TODO: parameterize keycodes.  Document somewhere
+
 							event::VirtualKeyCode::D =>
 							{
 								println!("d");
@@ -445,7 +449,18 @@ fn main()
 								// same key to cycle through cell data too
 
 								dindex = (dindex + 1) % model.point_data.len();
-								render_model.bind_point_data(dindex, &model, &display);
+								cindex = 0;
+
+								render_model.bind_point_data(dindex, cindex, &model, &display);
+							}
+							event::VirtualKeyCode::C =>
+							{
+								println!("c");
+
+								// Cycle vector/tensor component
+
+								cindex = (cindex + 1) % model.point_data[dindex].num_comp;
+								render_model.bind_point_data(dindex, cindex, &model, &display);
 							}
 							_ => {}
 						}
