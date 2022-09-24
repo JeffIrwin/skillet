@@ -26,22 +26,64 @@ extern crate glium;
 
 fn main()
 {
+	use glium::{glutin, glutin::event_loop::EventLoop, Surface};
+	use std::path::PathBuf;
+
 	println!();
 	println!("{}:  Starting main()", ME);
 	println!("{}:  {}", ME, mev!());
 	println!();
+
+	//let exe = env::current_exe().unwrap();
+	//let exe_base = exe.file_name().unwrap().to_str().unwrap();
+
+	let exe = env::current_exe().unwrap();
+	let exe_base_opt = exe.file_name().unwrap().to_str();
+	let exe_base = match exe_base_opt
+	{
+			Some(inner) => inner,
+			None        => "skillet.exe",
+	};
+
+	//let exe_base =
+	//{
+	//	let exe = env::current_exe().unwrap();
+	//	let exe_base_opt = exe.file_name().unwrap().to_str();
+	//	match exe_base_opt
+	//	{
+	//			Some(inner) => inner,
+	//			None        => "skillet.exe",
+	//	}
+	//};
+
+	////let exe_base = exe.file_name().display();
+	////let exe_base = exe.file_name().unwrap().to_os_string().into_string().unwrap();
+	//let exe_base = match
+	//	{
+	//		let exe = env::current_exe().unwrap();
+	//		let exef = exe.file_name().unwrap();
+	//		exef.to_str()
+	//	}
+	//	{
+	//		Some(inner) => inner,
+	//		None        => "skillet.exe",
+	//	};
 
 	// Switch to clap if args become more complicated than a single filename
 	let args: Vec<String> = env::args().collect();
 	if args.len() < 2
 	{
 		println!("Error: bad cmd args");
+		println!("Usage:");
+		println!();
+		println!("    {} FILE.VTK", exe_base);
+		println!();
 		return;
 	}
 
 	let file_path = PathBuf::from(args[1].clone());
 
-	use glium::{glutin, glutin::event_loop::EventLoop, Surface};
+	let m = import(file_path);
 
 	let event_loop = EventLoop::new();
 
@@ -109,29 +151,7 @@ fn main()
 	// Append datasets, in the mean time until I implement polydata natively
 	// here
 
-	use std::path::PathBuf;
-
 	//****************
-
-	// TODO: move this commented list to run script
-
-	//let file_path = PathBuf::from("./res/teapot.vtu");
-	//let file_path = PathBuf::from("./res/ico64.vtu");
-	//let file_path = PathBuf::from("./res/ico.vtu");
-
-	//let file_path = PathBuf::from("./scratch/rbc-sinx.vtu");
-
-	//// Legacy doesn't work?
-	//let file_path = PathBuf::from("./scratch/teapot.vtk");
-	//let file_path = PathBuf::from("./scratch/teapot-ascii.vtk");
-	//let file_path = PathBuf::from("./scratch/cube.vtk");
-
-	//// polydata with texture coords
-	//let file_path = PathBuf::from("./scratch/fran_cut.vtk"); 
-
-	//let file_path = PathBuf::from("./scratch/a.vtu");
-
-	let m = import(file_path);
 
 	// Get min/max of scalar
 	let (smin, smax) = get_bounds(&m.pdata);
