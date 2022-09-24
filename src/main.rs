@@ -443,24 +443,25 @@ fn main()
 
 							event::VirtualKeyCode::D =>
 							{
-								println!("d");
-
-								// Cycle point data display array.  TODO: use
-								// same key to cycle through cell data too
+								// TODO: use same key to cycle through cell data
+								// too
 
 								dindex = (dindex + 1) % model.point_data.len();
 								cindex = 0;
-
 								render_model.bind_point_data(dindex, cindex, &model, &display);
+
+								println!("Cycling data array");
+								println!("Data name = {}", model.point_data[dindex].name);
+								println!("Data comp = {}\n", cindex);
 							}
 							event::VirtualKeyCode::C =>
 							{
-								println!("c");
-
-								// Cycle vector/tensor component
-
 								cindex = (cindex + 1) % model.point_data[dindex].num_comp;
 								render_model.bind_point_data(dindex, cindex, &model, &display);
+
+								println!("Cycling data comp");
+								println!("Data name = {}", model.point_data[dindex].name);
+								println!("Data comp = {}\n", cindex);
 							}
 							_ => {}
 						}

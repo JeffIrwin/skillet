@@ -128,10 +128,9 @@ impl RenderModel
 		// wouldn't allow correct edge display or advanced filters that treat
 		// data at the cell level.
 
-		// TODO: split scalar handling to a separate loop (and eventually
-		// a separate fn).  Mesh geometry will only be loaded once, but scalars
-		// may be processed multiple times as the user cycles through results to
-		// display
+		// Split scalar handling to a separate fn.  Mesh geometry will only be
+		// loaded once, but scalars may be processed multiple times as the user
+		// cycles through results to display
 
 		let mut nodes   = Vec::with_capacity(tris.len());
 		let mut scalar  = Vec::with_capacity(tris.len());
@@ -304,8 +303,9 @@ pub fn import(f: std::path::PathBuf)
 	}
 
 	let piece = pieces[0].load_piece_data(None).unwrap();
+	let num_points = piece.num_points();
 
-	println!("Number of points = {}", piece.num_points());
+	println!("Number of points = {}", num_points);
 	println!("Number of cells  = {}", piece.cells.types.len());
 	println!();
 
@@ -355,6 +355,7 @@ pub fn import(f: std::path::PathBuf)
 		{
 			Attribute::DataArray(DataArray {elem, data, name}) =>
 			{
+				let data_len = data.len();
 				match elem
 				{
 					ElementType::Scalars{num_comp, ..}
@@ -375,24 +376,27 @@ pub fn import(f: std::path::PathBuf)
 					ElementType::Vectors{}
 					=>
 					{
+						// Vector num_comp should always be 3, but calculate it
+						// anyway
 						println!("Vectors");
 						point_data.push(Data
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
-								num_comp: ND,
+								num_comp: data_len / num_points,
 							});
 					}
 
 					ElementType::Tensors{}
 					=>
 					{
+						// Tensor num_comp may be 6 or 9
 						println!("Tensors");
 						point_data.push(Data
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
-								num_comp: ND * ND,
+								num_comp: data_len / num_points,
 							});
 					}
 
