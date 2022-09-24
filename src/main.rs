@@ -34,40 +34,7 @@ fn main()
 	println!("{}:  {}", ME, mev!());
 	println!();
 
-	//let exe = env::current_exe().unwrap();
-	//let exe_base = exe.file_name().unwrap().to_str().unwrap();
-
-	let exe = env::current_exe().unwrap();
-	let exe_base_opt = exe.file_name().unwrap().to_str();
-	let exe_base = match exe_base_opt
-	{
-			Some(inner) => inner,
-			None        => "skillet.exe",
-	};
-
-	//let exe_base =
-	//{
-	//	let exe = env::current_exe().unwrap();
-	//	let exe_base_opt = exe.file_name().unwrap().to_str();
-	//	match exe_base_opt
-	//	{
-	//			Some(inner) => inner,
-	//			None        => "skillet.exe",
-	//	}
-	//};
-
-	////let exe_base = exe.file_name().display();
-	////let exe_base = exe.file_name().unwrap().to_os_string().into_string().unwrap();
-	//let exe_base = match
-	//	{
-	//		let exe = env::current_exe().unwrap();
-	//		let exef = exe.file_name().unwrap();
-	//		exef.to_str()
-	//	}
-	//	{
-	//		Some(inner) => inner,
-	//		None        => "skillet.exe",
-	//	};
+	let exe = utils::get_exe_base("skillet.exe");
 
 	// Switch to clap if args become more complicated than a single filename
 	let args: Vec<String> = env::args().collect();
@@ -76,7 +43,7 @@ fn main()
 		println!("Error: bad cmd args");
 		println!("Usage:");
 		println!();
-		println!("    {} FILE.VTK", exe_base);
+		println!("    {} FILE.VTK", exe);
 		println!();
 		return;
 	}
