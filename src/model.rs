@@ -51,6 +51,10 @@ impl Model
 
 //****************
 
+// Split position and texture coordinates into separate arrays.  That way we
+// can change texture coordinates (e.g. rescale a colorbar range or load
+// a different result) without sending the position arrays to the GPU again
+
 #[derive(Copy, Clone, Debug)]
 pub struct Node
 {
@@ -92,8 +96,8 @@ impl RenderModel
 {
 	pub fn new(m: &Model, facade: &dyn glium::backend::Facade) -> RenderModel
 	{
-		// Capacity could be set ahead of time for tris with an extra pass over cell
-		// types to count triangles
+		// Capacity could be set ahead of time for tris with an extra pass over
+		// cell types to count triangles
 		let mut tris = Vec::new();
 		for i in 0 .. m.types.len()
 		{
@@ -106,15 +110,17 @@ impl RenderModel
 		}
 		//println!("tris = {:?}", tris);
 
-		// TODO: push other cell types to other buffers.  Draw them with separate
-		// calls to target.draw().  Since vertices are duplicated per cell, there
-		// need to be parallel vertex and scalar arrays too.  We could just push
-		// every cell type to a big list of tris, but that wouldn't allow correct
-		// edge display or advanced filters that treat data at the cell level.
+		// TODO: push other cell types to other buffers.  Draw them with
+		// separate calls to target.draw().  Since vertices are duplicated per
+		// cell, there need to be parallel vertex and scalar arrays too.  We
+		// could just push every cell type to a big list of tris, but that
+		// wouldn't allow correct edge display or advanced filters that treat
+		// data at the cell level.
 
-		// TODO: split scalar handling to a separate loop (and eventually a separate
-		// fn).  Mesh geometry will only be loaded once, but scalars may be
-		// processed multiple times as the user cycles through results to display
+		// TODO: split scalar handling to a separate loop (and eventually
+		// a separate fn).  Mesh geometry will only be loaded once, but scalars
+		// may be processed multiple times as the user cycles through results to
+		// display
 
 		let mut nodes   = Vec::with_capacity(tris.len());
 		let mut scalar  = Vec::with_capacity(tris.len());
@@ -125,8 +131,8 @@ impl RenderModel
 
 		for i in 0 .. tris.len() / ND
 		{
-			// Local array containing the coordinates of the vertices of a single
-			// triangle
+			// Local array containing the coordinates of the vertices of
+			// a single triangle
 			let mut p: [f32; ND*ND] = [0.0; ND*ND];
 
 			for j in 0 .. ND
@@ -143,7 +149,8 @@ impl RenderModel
 					]});
 
 				let s = m.pdata[tris[ND*i + j] as usize];
-				scalar.push(Scalar{tex_coord: ((s-smin) / (smax-smin)) as f32 });
+				scalar.push(Scalar{tex_coord:
+					((s - smin) / (smax - smin)) as f32 });
 			}
 
 			let p01 = sub(&p[3..6], &p[0..3]);
@@ -199,6 +206,11 @@ pub fn import(f: std::path::PathBuf)
 	//return;
 
 	// TODO: match UnstructuredGrid vs PolyData, etc.
+	//
+	// VTK polydata files (or other piece types) can be saved as
+	// UnstructuredGrid (.vtu) in ParaView with Filters -> Alphabetical ->
+	// Append datasets, in the mean time until I implement polydata natively
+	// here
 	let pieces = if let DataSet::UnstructuredGrid { pieces, ..} = vtk.data
 	{
 		pieces

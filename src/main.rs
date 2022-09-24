@@ -40,7 +40,7 @@ fn main()
 	let args: Vec<String> = env::args().collect();
 	if args.len() < 2
 	{
-		println!("Error: bad cmd args");
+		println!("Error: bad command-line arguments");
 		println!("Usage:");
 		println!();
 		println!("    {} FILE.VTK", exe);
@@ -85,17 +85,6 @@ fn main()
 	}
 	implement_vertex!(Node2, position2, tex_coord);
 
-	// Split position and texture coordinates into separate arrays.  That way we
-	// can change texture coordinates (e.g. rescale a colorbar range or load
-	// a different result) without sending the position arrays to the GPU again
-
-	//****************
-
-	// VTK polydata files (or other piece types) can be saved as
-	// UnstructuredGrid (.vtu) in ParaView with Filters -> Alphabetical ->
-	// Append datasets, in the mean time until I implement polydata natively
-	// here
-
 	//****************
 
 	// Get point xyz bounds
@@ -138,13 +127,13 @@ fn main()
 
 		uniform mat4 perspective;
 		uniform mat4 view;
-		uniform mat4 model;
+		uniform mat4 model_mat;
 		uniform mat4 world;
 
 		void main()
 		{
 			v_tex_coord = tex_coord;
-			mat4 modelview = view * world * model;
+			mat4 modelview = view * world * model_mat;
 			v_normal = transpose(inverse(mat3(modelview))) * normal;
 			gl_Position = perspective * modelview * vec4(position, 1.0);
 			v_position = gl_Position.xyz / gl_Position.w;
@@ -243,7 +232,7 @@ fn main()
 
 	// Don't scale or translate here.  Model matrix should always be identity
 	// unless I add an option for a user to move one model relative to others
-	let model = identity_matrix();
+	let model_mat = identity_matrix();
 
 	// This is where transformations happen
 	let mut world = identity_matrix();
@@ -477,7 +466,7 @@ fn main()
 				perspective: perspective,
 				view : view ,
 				world: world,
-				model: model,
+				model_mat: model_mat,
 				u_light: light,
 				tex: tex,
 				bg_tex: bg_tex,
