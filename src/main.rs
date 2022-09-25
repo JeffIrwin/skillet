@@ -69,6 +69,9 @@ fn main()
 		.with_title(mev!())
 		.with_window_icon(winicon)
 		.with_maximized(true);
+		//.with_inner_size(glutin::dpi::LogicalSize::new(1960.0, 1390.0))
+		//.with_position(glutin::dpi::LogicalPosition::new(0, 0));
+		//// ^ this leaves room for an 80 char terminal on my main monitor
 
 	let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
 	let display = glium::Display::new(wb, cb, &event_loop).unwrap();
