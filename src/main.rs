@@ -189,6 +189,19 @@ fn main()
 		}
 	"#;
 
+	let edge_shader_src = r#"
+		#version 150
+		out vec4 color;
+
+		// This could be a uniform
+		const vec4 edge_color = vec4(0.0, 0.0, 0.0, 1.0);
+
+		void main()
+		{
+			color = edge_color;
+		}
+	"#;
+
 	// Background shader
 	let bg_vertex_shader_src = r#"
 		#version 150
@@ -237,6 +250,9 @@ fn main()
 
 	let program = glium::Program::from_source(&display, vertex_shader_src,
 			fragment_shader_src, None).unwrap();
+
+	let edge_program = glium::Program::from_source(&display, vertex_shader_src,
+			edge_shader_src, None).unwrap();
 
 	let bg_program = glium::Program::from_source(&display, bg_vertex_shader_src,
 			bg_fragment_shader_src, None).unwrap();
@@ -548,10 +564,14 @@ fn main()
 		{
 			depth: glium::Depth
 			{
-				test: glium::draw_parameters::DepthTest::IfLess,
+				test: glium::draw_parameters::DepthTest::IfLessOrEqual,
 				write: true,
 				.. Default::default()
 			},
+
+			// Hack around z-fighting for edge display.  Units are pixels
+			line_width: Some(2.0),
+
 			//backface_culling: glium::draw_parameters::BackfaceCullingMode
 			//		::CullClockwise,
 			.. Default::default()
@@ -563,7 +583,7 @@ fn main()
 		// Clearing the depth again here forces the background to the back
 		target.clear_depth(1.0);
 
-		// TODO: move this to a RenderModel method?  Either pass program,
+		// TODO: move this to a RenderModel method.  Either pass program,
 		// uniforms, and params as args or encapsulate them in RenderModel
 		// struct
 		target.draw((
@@ -572,6 +592,11 @@ fn main()
 			&render_model.scalar),
 			&render_model.indices,
 			&program, &uniforms, &params).unwrap();
+
+		target.draw(
+			&render_model.edge_verts,
+			&render_model.edge_indices,
+			&edge_program, &uniforms, &params).unwrap();
 
 		// TODO: draw axes, colormap legend
 

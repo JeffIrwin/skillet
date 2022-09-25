@@ -28,6 +28,9 @@ pub const N2: usize = 2;
 // Number of vertices per triangle
 pub const NT: usize = 3;
 
+// Number of vertices per edge (line)
+pub const NE: usize = 2;
+
 // Augmented matrix size
 pub const NM: usize = ND + 1;
 

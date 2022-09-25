@@ -24,6 +24,8 @@ pub enum Type
 	Wedge,
 	Pyramid,
 
+	// TODO: test quad, tet, wedge, and pyramid
+
 	Invalid, // supported in vtkio but not here
 }
 
@@ -88,6 +90,7 @@ pub fn cell_tris(t: Type) -> Vec<usize>
 
 pub fn cell_num_verts(t: Type) -> usize
 {
+	// max(cell_tris) + 1
 	match t
 	{
 		Type::Tri     => 3,
@@ -101,11 +104,11 @@ pub fn cell_num_verts(t: Type) -> usize
 	}
 }
 
+//==============================================================================
+
 pub fn cell_edges(t: Type) -> Vec<usize>
 {
 	// Return an array of edge vertices that make up a more complex cell type
-	//
-	// TODO: implement display
 	match t
 	{
 		Type::Tri => vec!
@@ -144,17 +147,17 @@ pub struct Model
 	// For now, this is just a wrapper for the vtkio vtk struct, although it
 	// could be generalized for other file formats
 
+	// Point coordinates
 	pub points: Vec<f32>,
 
+	// Cell connectivity
 	pub types  : Vec<Type>,
 	pub cells  : Vec<u64>,
 	pub offsets: Vec<u64>,
 
-	// Data arrays
+	// Data arrays (e.g. scalars, vectors, tensors)
 	pub point_data: Vec<Data>,
 	pub  cell_data: Vec<Data>,
-
-	// TODO: cell data.  "./res/hex.vtu" has cell IDs as cell data
 }
 
 pub struct Data
@@ -217,6 +220,31 @@ impl Model
 		}
 		tris
 	}
+
+	//****************
+
+	pub fn edges(&self) -> Vec<u64>
+	{
+		let mut edges = Vec::new();
+		for i in 0 .. self.types.len() as usize
+		{
+			let e = cell_edges(self.types[i]);
+			let nv = cell_num_verts(self.types[i]);
+			let ne = e.len() / NE;
+
+			//println!("ne = {}", ne);
+
+			for ie in 0 .. ne as usize
+			{
+				let i0 = self.offsets[i] as usize - nv + e[NE * ie + 0];
+				let i1 = self.offsets[i] as usize - nv + e[NE * ie + 1];
+
+				edges.push(self.cells[i0]);
+				edges.push(self.cells[i1]);
+			}
+		}
+		edges
+	}
 }
 
 //****************
@@ -260,6 +288,9 @@ pub struct RenderModel
 	pub normals : glium::VertexBuffer<Normal>,
 	pub scalar  : glium::VertexBuffer<Scalar>,
 	pub indices : glium::index::NoIndices,
+
+	pub edge_verts  : glium::VertexBuffer<Vert  >,
+	pub edge_indices: glium::index::NoIndices,
 }
 
 impl RenderModel
@@ -325,6 +356,35 @@ impl RenderModel
 		//println!("vert   2 = {:?}", verts[2]);
 		//println!("normal 0 = {:?}", normals[0]);
 
+		let edges = m.edges();
+		let mut edge_verts = Vec::with_capacity(edges.len());
+		for i in 0 .. edges.len() / NE
+		{
+			// This could be half the size.  Unlike normal calculation above, we
+			// only need to push 1 vert at a time without keeping the whole edge
+			// in memory.  Should fix ND/NT conflation above (which is correct
+			// here) before deleting
+			let mut p: [f32; NE * ND] = [0.0; NE * ND];
+
+			for j in 0 .. NE
+			{
+				p[NE*j + 0] = m.points[ND*edges[NE*i + j] as usize + 0];
+				p[NE*j + 1] = m.points[ND*edges[NE*i + j] as usize + 1];
+				p[NE*j + 2] = m.points[ND*edges[NE*i + j] as usize + 2];
+
+				// If we map edge to triangle, we could add a bit of the outward
+				// normal to the edge position to fix z-fighting.  Instead, just
+				// increase line_width in DrawParameters
+
+				edge_verts.push(Vert{position:
+					[
+						p[NE*j + 0],// + 0.001,
+						p[NE*j + 1],// + 0.001,
+						p[NE*j + 2],// + 0.001,
+					]});
+			}
+		}
+
 		let mut render_model = RenderModel
 		{
 			vertices: glium::VertexBuffer::new(facade, &verts  ).unwrap(),
@@ -333,6 +393,10 @@ impl RenderModel
 
 			indices : glium::index::NoIndices(
 				glium::index::PrimitiveType::TrianglesList),
+
+			edge_verts: glium::VertexBuffer::new(facade, &edge_verts).unwrap(),
+			edge_indices: glium::index::NoIndices(
+				glium::index::PrimitiveType::LinesList),
 		};
 
 		// If point data is empty, bind cell data instead.  If both are empty,
