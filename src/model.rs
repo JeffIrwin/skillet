@@ -300,8 +300,9 @@ impl RenderModel
 				glium::index::PrimitiveType::TrianglesList),
 		};
 
-		// TODO: if empty, bind cell data instead.  What happens if both are
-		// empty?
+		// TODO: if empty, bind cell data instead.  If both are empty, panic.
+		// Otherwise, main will crash at my target_draw() call which references
+		// the empty scalar
 		render_model.bind_point_data(0, 0, &m, facade);
 
 		render_model
@@ -328,7 +329,6 @@ impl RenderModel
 		// not tensors).  An extra pass will be needed to calculate
 		let (smin, smax) = utils::get_bounds(&(m.point_data[index].data
 			.iter().skip(comp).step_by(step).copied().collect::<Vec<f32>>()));
-		//let (smin, smax) = utils::get_bounds(&m.point_data[index].data);
 
 		for i in 0 .. tris.len()
 		{
@@ -342,13 +342,65 @@ impl RenderModel
 	}
 
 	//****************
+
+	pub fn bind_cell_data(&mut self, index: usize, comp: usize, m: &Model,
+		facade: &dyn glium::backend::Facade)
+	{
+		// Select cell data array by index to bind for graphical display
+
+		// TODO: check index too
+		if comp >= m.cell_data[index].num_comp
+		{
+			panic!("Component is out of bounds");
+		}
+
+		let tris = m.tris();
+		let mut scalar  = Vec::with_capacity(tris.len());
+		let step = m.cell_data[index].num_comp;
+
+		// Get min/max of scalar.  TODO: add a magnitude option for vectors (but
+		// not tensors).  An extra pass will be needed to calculate
+		let (smin, smax) = utils::get_bounds(&(m.cell_data[index].data
+			.iter().skip(comp).step_by(step).copied().collect::<Vec<f32>>()));
+
+		// Cell index
+		let mut ic = 0;
+
+		// Duplicated vert index within cell
+		let mut iv = 0;
+
+		// Number of duplicated verts in this cell (recall: verts are duplicated
+		// for each triangle they belong too, both for sharp shading display
+		// along edges, and here for per-cell scalar display)
+		let mut nvc = cell_tris(m.types[ic]).len();
+
+		for _i in 0 .. tris.len()
+		{
+			if iv >= nvc
+			{
+				iv = 0;
+				ic += 1;
+				nvc = cell_tris(m.types[ic]).len();
+			}
+			//println!("_i, ic, iv = {}, {}, {}", _i, ic, iv);
+
+			let s = m.cell_data[index].data[ic as usize + comp];
+
+			scalar.push(Scalar{tex_coord:
+				((s - smin) / (smax - smin)) as f32 });
+
+			iv += 1;
+		}
+
+		self.scalar = glium::VertexBuffer::new(facade, &scalar).unwrap();
+	}
+
+	//****************
 }
 
 //==============================================================================
 
-pub fn import(f: std::path::PathBuf)
-	//-> Vec<Piece<UnstructuredGridPiece>>
-	-> Model
+pub fn import(f: std::path::PathBuf) -> Model
 {
 	println!("Importing VTK file \"{}\"", f.display());
 	println!();
@@ -443,6 +495,7 @@ pub fn import(f: std::path::PathBuf)
 	//let mut name: String = "".to_string();
 
 	m.point_data = data(&piece.data.point, num_points);
+	m. cell_data = data(&piece.data.cell , num_points);
 
 	m
 }

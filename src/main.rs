@@ -114,10 +114,11 @@ fn main()
 
 	// Data array and component indices for color contour
 	let mut dindex = 0;
-	let mut cindex = 0;
+	let mut comp = 0;
 
 	let mut render_model = RenderModel::new(&model, &display);
-	render_model.bind_point_data(dindex, cindex, &model, &display);
+	//render_model.bind_cell_data(dindex, comp, &model, &display);
+	render_model.bind_point_data(dindex, comp, &model, &display);
 
 	let vertex_shader_src = r#"
 		#version 150
@@ -447,21 +448,21 @@ fn main()
 								// too
 
 								dindex = (dindex + 1) % model.point_data.len();
-								cindex = 0;
-								render_model.bind_point_data(dindex, cindex, &model, &display);
+								comp = 0;
+								render_model.bind_point_data(dindex, comp, &model, &display);
 
 								println!("Cycling data array");
 								println!("Data name = {}", model.point_data[dindex].name);
-								println!("Data comp = {}\n", cindex);
+								println!("Data comp = {}\n", comp);
 							}
 							event::VirtualKeyCode::C =>
 							{
-								cindex = (cindex + 1) % model.point_data[dindex].num_comp;
-								render_model.bind_point_data(dindex, cindex, &model, &display);
+								comp = (comp + 1) % model.point_data[dindex].num_comp;
+								render_model.bind_point_data(dindex, comp, &model, &display);
 
 								println!("Cycling data comp");
 								println!("Data name = {}", model.point_data[dindex].name);
-								println!("Data comp = {}\n", cindex);
+								println!("Data comp = {}\n", comp);
 							}
 							_ => {}
 						}
