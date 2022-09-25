@@ -7,9 +7,9 @@ Skillet is a lightweight, deep-fried, rust application for interactive scientifi
 
 Compare skillet with [ParaView](https://www.paraview.org/):
 
-| Skillet                     | ParaView               |
-| -----------                 | -----------            |
-| ![](doc/skillet-teapot.png) | ![](doc/pv-teapot.png) |
+| Skillet                | ParaView               |
+| -----------            | -----------            |
+| ![](doc/skillet.gif)   | ![](doc/pv-teapot.png) |
 
 # Run
 
