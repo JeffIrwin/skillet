@@ -463,6 +463,29 @@ fn main()
 						{
 							// TODO: parameterize keycodes.  Document somewhere
 
+							event::VirtualKeyCode::C =>
+							{
+								//render_model.bind_point_data(dindex, comp, &model, &display);
+
+								let name;
+								if dindex < model.point_data.len()
+								{
+									comp = (comp + 1) % model.point_data[dindex].num_comp;
+									render_model.bind_point_data(dindex, comp, &model, &display);
+									name = &model.point_data[dindex].name;
+								}
+								else
+								{
+									let cindex = dindex - model.point_data.len();
+									comp = (comp + 1) % model.cell_data[cindex].num_comp;
+									render_model.bind_cell_data(cindex, comp, &model, &display);
+									name = &model.cell_data[cindex].name;
+								}
+
+								println!("Cycling data comp");
+								println!("Data name = {}", name);
+								println!("Data comp = {}\n", comp);
+							}
 							event::VirtualKeyCode::D =>
 							{
 								let name;
@@ -487,29 +510,12 @@ fn main()
 								println!("Data name = {}", name);
 								println!("Data comp = {}\n", comp);
 							}
-							event::VirtualKeyCode::C =>
+							event::VirtualKeyCode::E =>
 							{
-								//render_model.bind_point_data(dindex, comp, &model, &display);
-
-								let name;
-								if dindex < model.point_data.len()
-								{
-									comp = (comp + 1) % model.point_data[dindex].num_comp;
-									render_model.bind_point_data(dindex, comp, &model, &display);
-									name = &model.point_data[dindex].name;
-								}
-								else
-								{
-									let cindex = dindex - model.point_data.len();
-									comp = (comp + 1) % model.cell_data[cindex].num_comp;
-									render_model.bind_cell_data(cindex, comp, &model, &display);
-									name = &model.cell_data[cindex].name;
-								}
-
-								println!("Cycling data comp");
-								println!("Data name = {}", name);
-								println!("Data comp = {}\n", comp);
+								render_model.edge_visibility = !render_model.edge_visibility;
+								println!("Toggling edge visibility");
 							}
+
 							_ => {}
 						}
 					}
@@ -593,10 +599,13 @@ fn main()
 			&render_model.indices,
 			&program, &uniforms, &params).unwrap();
 
-		target.draw(
-			&render_model.edge_verts,
-			&render_model.edge_indices,
-			&edge_program, &uniforms, &params).unwrap();
+		if render_model.edge_visibility
+		{
+			target.draw(
+				&render_model.edge_verts,
+				&render_model.edge_indices,
+				&edge_program, &uniforms, &params).unwrap();
+		}
 
 		// TODO: draw axes, colormap legend
 

@@ -289,7 +289,8 @@ pub struct RenderModel
 	pub scalar  : glium::VertexBuffer<Scalar>,
 	pub indices : glium::index::NoIndices,
 
-	pub edge_verts  : glium::VertexBuffer<Vert  >,
+	pub edge_visibility: bool,
+	pub edge_verts  : glium::VertexBuffer<Vert>,
 	pub edge_indices: glium::index::NoIndices,
 }
 
@@ -394,7 +395,8 @@ impl RenderModel
 			indices : glium::index::NoIndices(
 				glium::index::PrimitiveType::TrianglesList),
 
-			edge_verts: glium::VertexBuffer::new(facade, &edge_verts).unwrap(),
+			edge_visibility: false,
+			edge_verts  : glium::VertexBuffer::new(facade, &edge_verts).unwrap(),
 			edge_indices: glium::index::NoIndices(
 				glium::index::PrimitiveType::LinesList),
 		};
