@@ -11,6 +11,36 @@ Compare skillet with [ParaView](https://www.paraview.org/):
 | -----------                 | -----------            |
 | ![](doc/skillet-teapot.png) | ![](doc/pv-teapot.png) |
 
+# Run
+
+Provide the `.vtu` filename as an argument:
+
+    cargo run ./res/teapot.vtu
+
+You can try one of the provided `.vtu` files in the `./res/` directory.
+
+## Mouse and key controls
+
+Mouse controls mostly follow the ParaView conventions.
+
+### LMB drag:  rotate
+
+LMB means "left mouse button".
+
+### Mouse wheel scroll:  zoom
+
+### MMB drag:  pan
+
+### RMB vertical drag:  z pan
+
+Z pan is similar to scroll zooming.
+
+### `c`: cycle vector/tensor component
+
+### `d`: cycle point data or cell data array
+
+### `e`: toggle edge visibility
+
 # Features
 
 ## Data array types
