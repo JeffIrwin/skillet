@@ -25,10 +25,11 @@ pub use std::f32::consts::PI;
 pub const ND: usize = 3;
 pub const N2: usize = 2;
 
+// Number of vertices per triangle
+pub const NT: usize = 3;
+
 // Augmented matrix size
 pub const NM: usize = ND + 1;
-
-// TODO: parameterize # verts per tri
 
 //==============================================================================
 

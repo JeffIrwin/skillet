@@ -12,6 +12,58 @@ use vtkio::{model, model::{Attribute, DataArray, DataSet, ElementType, Vtk}};
 
 //==============================================================================
 
+#[derive(PartialEq, Clone, Copy)]
+pub enum Type
+{
+	// There are a few others, but I'm not planning to implement them
+
+	Tri,
+	//Quad,
+	//Tet,
+	Hex,
+	//Wedge,
+	//Pyramid,
+
+	Invalid, // supported in vtkio but not here
+}
+
+pub fn cell_tris(t: Type) -> Vec<usize>
+{
+	// Return an array of indices of triangle vertices that make up a more
+	// complex cell type
+	match t
+	{
+		Type::Tri => vec!
+			[
+				0, 1, 2,
+			],
+		Type::Hex => vec!
+			[
+				0, 3, 2,   2, 1, 0,
+				4, 5, 6,   6, 7, 4,
+				0, 1, 5,   5, 4, 0,
+				1, 2, 6,   6, 5, 1,
+				2, 3, 7,   7, 6, 2,
+				0, 4, 7,   7, 3, 0,
+			],
+
+		Type::Invalid => vec![],
+	}
+}
+
+pub fn cell_num_verts(t: Type) -> usize
+{
+	match t
+	{
+		Type::Tri => 3,
+		Type::Hex => 8,
+
+		Type::Invalid => 0,
+	}
+}
+
+//==============================================================================
+
 pub struct Model
 {
 	// The Model struct contains the geometry and its associated point data
@@ -22,14 +74,14 @@ pub struct Model
 	pub points: Vec<f32>,
 
 	// TODO: abstract away from vtkio's types
-	pub types  : Vec<model::CellType>,
+	pub types  : Vec<Type>,
 	pub cells  : Vec<u64>,
 	pub offsets: Vec<u64>,
 
 	// Point data arrays
 	pub point_data: Vec<Data>,
 
-	// TODO: cell data
+	// TODO: cell data.  "./res/hex.vtu" has cell IDs as cell data
 }
 
 pub struct Data
@@ -110,14 +162,33 @@ impl RenderModel
 		// Capacity could be set ahead of time for tris with an extra pass over
 		// cell types to count triangles
 		let mut tris = Vec::new();
-		for i in 0 .. m.types.len()
+		for i in 0 .. m.types.len() as usize
 		{
-			if m.types[i] == vtkio::model::CellType::Triangle
+
+			//if m.types[i] == Type::Tri
+			//{
+			//	tris.push(m.cells[ (m.offsets[i as usize] - 3) as usize ] as u32 );
+			//	tris.push(m.cells[ (m.offsets[i as usize] - 2) as usize ] as u32 );
+			//	tris.push(m.cells[ (m.offsets[i as usize] - 1) as usize ] as u32 );
+			//}
+
+			let t = cell_tris(m.types[i]);
+			let nv = cell_num_verts(m.types[i]);
+			let nt = t.len() / NT;
+
+			println!("nt = {}", nt);
+
+			for it in 0 .. nt as usize
 			{
-				tris.push(m.cells[ (m.offsets[i as usize] - 3) as usize ] as u32 );
-				tris.push(m.cells[ (m.offsets[i as usize] - 2) as usize ] as u32 );
-				tris.push(m.cells[ (m.offsets[i as usize] - 1) as usize ] as u32 );
+				let i0 = m.offsets[i] as usize - nv + t[NT * it + 0] as usize;
+				let i1 = m.offsets[i] as usize - nv + t[NT * it + 1] as usize;
+				let i2 = m.offsets[i] as usize - nv + t[NT * it + 2] as usize;
+
+				tris.push(m.cells[i0]);
+				tris.push(m.cells[i1]);
+				tris.push(m.cells[i2]);
 			}
+
 		}
 		//println!("tris = {:?}", tris);
 
@@ -222,16 +293,33 @@ impl RenderModel
 		// Capacity could be set ahead of time for tris with an extra pass over
 		// cell types to count triangles
 		let mut tris = Vec::new();
-		for i in 0 .. m.types.len()
+		for i in 0 .. m.types.len() as usize
 		{
-			if m.types[i] == vtkio::model::CellType::Triangle
+
+			//if m.types[i] == Type::Tri
+			//{
+			//	tris.push(m.cells[ (m.offsets[i as usize] - 3) as usize ] as u32 );
+			//	tris.push(m.cells[ (m.offsets[i as usize] - 2) as usize ] as u32 );
+			//	tris.push(m.cells[ (m.offsets[i as usize] - 1) as usize ] as u32 );
+			//}
+
+			let t = cell_tris(m.types[i]);
+			let nv = cell_num_verts(m.types[i]);
+			let nt = t.len() / NT;
+
+			println!("nt = {}", nt);
+
+			for it in 0 .. nt as usize
 			{
-				tris.push(m.cells[ (m.offsets[i as usize] - 3) as usize ] as u32 );
-				tris.push(m.cells[ (m.offsets[i as usize] - 2) as usize ] as u32 );
-				tris.push(m.cells[ (m.offsets[i as usize] - 1) as usize ] as u32 );
+				let i0 = m.offsets[i] as usize - nv + t[NT * it + 0] as usize;
+				let i1 = m.offsets[i] as usize - nv + t[NT * it + 1] as usize;
+				let i2 = m.offsets[i] as usize - nv + t[NT * it + 2] as usize;
+
+				tris.push(m.cells[i0]);
+				tris.push(m.cells[i1]);
+				tris.push(m.cells[i2]);
 			}
 		}
-		//println!("tris = {:?}", tris);
 
 		let mut scalar  = Vec::with_capacity(tris.len());
 		let step = m.point_data[index].num_comp;
@@ -333,7 +421,25 @@ pub fn import(f: std::path::PathBuf)
 	// In vtkio, cells.0 is the actual connectivity, and cells.1 is the offset
 	m.cells   = cells.0;
 	m.offsets = cells.1;
-	m.types   = piece.cells.types;
+
+	//m.types   = piece.cells.types;
+
+	// Abstract away from vtkio's type enum
+	m.types = Vec::with_capacity(piece.cells.types.len());
+	for t in piece.cells.types
+	{
+		m.types.push(match t
+		{
+			vtkio::model::CellType::Triangle   => Type::Tri,
+			vtkio::model::CellType::Hexahedron => Type::Hex,
+
+			//vtkio::model::CellType::Line       => Type::Unsupported,
+			//vtkio::model::CellType::PolyVertex => Type::Unsupported,
+			//vtkio::model::CellType::Vertex     => Type::Unsupported,
+
+			_ => Type::Invalid,
+		});
+	}
 
 	//println!("point 0 = {:?}", piece.data.point[0]);
 	//println!();
