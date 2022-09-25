@@ -575,14 +575,32 @@ fn main()
 			{
 				test: glium::draw_parameters::DepthTest::IfLessOrEqual,
 				write: true,
+
+				// High zoom levels are weird, but they're weirder without this.
+				// Maybe increase depth buffer bits too?
+				clamp: glium::draw_parameters::DepthClamp::Clamp,
+
 				.. Default::default()
 			},
 
 			// Hack around z-fighting for edge display.  Units are pixels
-			line_width: Some(2.0),
+			polygon_offset: glium::draw_parameters::PolygonOffset
+			{
+				factor: 1.01,
+				//units: 3.0,
+				//line: true,
+				fill: true,
+				.. Default::default()
+			},
+
+			// This is the default.  It could be increased, but the
+			// polygon_offset works better than thickening.  Could expose to
+			// user as an option
+			line_width: Some(1.0),
 
 			//backface_culling: glium::draw_parameters::BackfaceCullingMode
 			//		::CullClockwise,
+
 			.. Default::default()
 		};
 

@@ -375,7 +375,7 @@ impl RenderModel
 
 				// If we map edge to triangle, we could add a bit of the outward
 				// normal to the edge position to fix z-fighting.  Instead, just
-				// increase line_width in DrawParameters
+				// increase polygon_offset and/or line_width in DrawParameters
 
 				edge_verts.push(Vert{position:
 					[
