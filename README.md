@@ -11,3 +11,22 @@ Compare skillet with [ParaView](https://www.paraview.org/):
 | -----------                 | -----------            |
 | ![](doc/skillet-teapot.png) | ![](doc/pv-teapot.png) |
 
+# Features
+
+## Data arrays
+
+| Data array     | Skillet support?   |
+| -----------    | -----------        |
+| Point data     |  ✔               |
+| Cell data      |  ✔               |
+| Scalars        |  ✔               |
+| Vectors        |  ✔               |
+| Tensors        |  ✔               |
+| Generic        | ❌                |
+
+## Cell types
+
+## File formats
+
+## Operating systems
+
