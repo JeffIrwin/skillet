@@ -115,8 +115,9 @@ pub struct Model
 	pub cells  : Vec<u64>,
 	pub offsets: Vec<u64>,
 
-	// Point data arrays
+	// Data arrays
 	pub point_data: Vec<Data>,
+	pub  cell_data: Vec<Data>,
 
 	// TODO: cell data.  "./res/hex.vtu" has cell IDs as cell data
 }
@@ -143,6 +144,7 @@ impl Model
 			offsets: Vec::new(),
 
 			point_data: Vec::new(),
+			 cell_data: Vec::new(),
 		}
 	}
 
@@ -298,6 +300,8 @@ impl RenderModel
 				glium::index::PrimitiveType::TrianglesList),
 		};
 
+		// TODO: if empty, bind cell data instead.  What happens if both are
+		// empty?
 		render_model.bind_point_data(0, 0, &m, facade);
 
 		render_model
@@ -310,6 +314,7 @@ impl RenderModel
 	{
 		// Select point data array by index to bind for graphical display
 
+		// TODO: check index too
 		if comp >= m.point_data[index].num_comp
 		{
 			panic!("Component is out of bounds");
@@ -437,16 +442,25 @@ pub fn import(f: std::path::PathBuf)
 
 	//let mut name: String = "".to_string();
 
-	let mut point_data = Vec::new();
+	m.point_data = data(&piece.data.point, num_points);
 
-	// Iterate attributes like this to get all pointdata (TODO: make this a fn
-	// and parse cell data too)
-	for attrib in &piece.data.point
+	m
+}
+
+//==============================================================================
+
+fn data(attribs: &Vec<vtkio::model::Attribute>, num: usize) -> Vec<Data>
+{
+	// Return val.  This could be either point data or cell data
+	let mut data_vec = Vec::new();
+
+	// Iterate attributes like this to get all data
+	for attrib in attribs
 	{
 		println!("Attribute:");
 		//println!("attrib = {:?}", attrib);
 
-		// Get the contents of the pointdata array.  This is based on
+		// Get the contents of the point/cell data array.  This is based on
 		// write_attrib() from vtkio/src/writer.rs
 
 		match attrib
@@ -463,7 +477,7 @@ pub fn import(f: std::path::PathBuf)
 
 						// Cast everything to f32
 
-						point_data.push(Data
+						data_vec.push(Data
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
@@ -477,11 +491,11 @@ pub fn import(f: std::path::PathBuf)
 						// Vector num_comp should always be 3, but calculate it
 						// anyway
 						println!("Vectors");
-						point_data.push(Data
+						data_vec.push(Data
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
-								num_comp: data_len / num_points,
+								num_comp: data_len / num,
 							});
 					}
 
@@ -490,11 +504,11 @@ pub fn import(f: std::path::PathBuf)
 					{
 						// Tensor num_comp may be 6 or 9
 						println!("Tensors");
-						point_data.push(Data
+						data_vec.push(Data
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
-								num_comp: data_len / num_points,
+								num_comp: data_len / num,
 							});
 					}
 
@@ -502,7 +516,7 @@ pub fn import(f: std::path::PathBuf)
 					=>
 					{
 						println!("Generic");
-						point_data.push(Data
+						data_vec.push(Data
 							{
 								name: name.to_string(),
 								data: data.clone().cast_into::<f32>().unwrap(),
@@ -540,7 +554,7 @@ pub fn import(f: std::path::PathBuf)
 				}
 			}
 			Attribute::Field {..}
-					=> unimplemented!("field attribute for point data")
+					=> unimplemented!("Field attribute for point/cell data")
 		};
 		println!();
 	}
@@ -548,8 +562,8 @@ pub fn import(f: std::path::PathBuf)
 	// TODO: display name in legend.  Apparently I need another crate for GL
 	// text display
 
-	println!("point_data.len() = {}", point_data.len());
-	for d in &point_data
+	println!("data_vec.len() = {}", data_vec.len());
+	for d in &data_vec
 	{
 		println!("\tname     = {}", d.name);
 		println!("\tnum_comp = {}", d.num_comp);
@@ -557,9 +571,7 @@ pub fn import(f: std::path::PathBuf)
 		println!();
 	}
 
-	m.point_data = point_data;
-
-	m
+	data_vec
 }
 
 //==============================================================================
