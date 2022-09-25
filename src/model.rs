@@ -18,11 +18,11 @@ pub enum Type
 	// There are a few others, but I'm not planning to implement them
 
 	Tri,
-	//Quad,
-	//Tet,
+	Quad,
+	Tet,
 	Hex,
-	//Wedge,
-	//Pyramid,
+	Wedge,
+	Pyramid,
 
 	Invalid, // supported in vtkio but not here
 }
@@ -34,11 +34,25 @@ pub fn cell_tris(t: Type) -> Vec<usize>
 	//
 	// Ref:  http://www.princeton.edu/~efeibush/viscourse/vtk.pdf
 	//
+	// Right-hand ordering of 3 vertices points to the outward normal direction
+	//
 	match t
 	{
 		Type::Tri => vec!
 			[
 				0, 1, 2,
+			],
+		Type::Quad => vec!
+			[
+				0, 1, 2,
+				2, 3, 0,
+			],
+		Type::Tet => vec!
+			[
+				0, 2, 1,
+				0, 1, 3,
+				0, 3, 2,
+				1, 2, 3,
 			],
 		Type::Hex => vec!
 			[
@@ -48,6 +62,22 @@ pub fn cell_tris(t: Type) -> Vec<usize>
 				1, 2, 6,   6, 5, 1,
 				2, 3, 7,   7, 6, 2,
 				0, 4, 7,   7, 3, 0,
+			],
+		Type::Wedge => vec!
+			[
+				0, 1, 2,
+				3, 5, 4,
+				0, 2, 3,   2, 5, 3,
+				1, 4, 5,   5, 2, 1,
+				0, 3, 4,   4, 1, 0,
+			],
+		Type::Pyramid => vec!
+			[
+				0, 1, 4,
+				1, 2, 4,
+				2, 3, 4,
+				3, 0, 4,
+				0, 3, 2,   2, 1, 0,
 			],
 
 		Type::Invalid => vec![],
@@ -60,8 +90,12 @@ pub fn cell_num_verts(t: Type) -> usize
 {
 	match t
 	{
-		Type::Tri => 3,
-		Type::Hex => 8,
+		Type::Tri     => 3,
+		Type::Quad    => 4,
+		Type::Tet     => 4,
+		Type::Hex     => 8,
+		Type::Wedge   => 6,
+		Type::Pyramid => 5,
 
 		Type::Invalid => 0,
 	}
@@ -97,6 +131,7 @@ pub fn cell_edges(t: Type) -> Vec<usize>
 			],
 
 		Type::Invalid => vec![],
+		_ => vec![], // TODO
 	}
 }
 
@@ -491,7 +526,10 @@ pub fn import(f: std::path::PathBuf) -> Model
 		m.types.push(match t
 		{
 			vtkio::model::CellType::Triangle   => Type::Tri,
+			vtkio::model::CellType::Quad       => Type::Quad,
 			vtkio::model::CellType::Hexahedron => Type::Hex,
+			vtkio::model::CellType::Wedge      => Type::Wedge,
+			vtkio::model::CellType::Pyramid    => Type::Pyramid,
 
 			//vtkio::model::CellType::Line       => Type::Unsupported,
 			//vtkio::model::CellType::PolyVertex => Type::Unsupported,
