@@ -300,10 +300,22 @@ impl RenderModel
 				glium::index::PrimitiveType::TrianglesList),
 		};
 
-		// TODO: if empty, bind cell data instead.  If both are empty, panic.
-		// Otherwise, main will crash at my target_draw() call which references
-		// the empty scalar
-		render_model.bind_point_data(0, 0, &m, facade);
+		// If point data is empty, bind cell data instead.  If both are empty,
+		// panic.  Otherwise, main will crash at my target_draw() call which
+		// references the empty scalar
+		if m.point_data.len() > 0
+		{
+			render_model.bind_point_data(0, 0, &m, facade);
+		}
+		else if m.cell_data.len() > 0
+		{
+			render_model.bind_cell_data(0, 0, &m, facade);
+		}
+		else
+		{
+			unimplemented!("Point data and cell data are both empty.  \
+				Geometry-only models cannot be rendered");
+		}
 
 		render_model
 	}

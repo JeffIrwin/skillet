@@ -117,8 +117,13 @@ fn main()
 	let mut comp = 0;
 
 	let mut render_model = RenderModel::new(&model, &display);
+
+	//// There's no need to bind a scalar here.  RenderModel already binds the
+	//// first one on construction.
 	//render_model.bind_cell_data(dindex, comp, &model, &display);
-	render_model.bind_point_data(dindex, comp, &model, &display);
+	//render_model.bind_point_data(dindex, comp, &model, &display);
+
+	let data_len = model.point_data.len() + model.cell_data.len();
 
 	let vertex_shader_src = r#"
 		#version 150
@@ -444,24 +449,49 @@ fn main()
 
 							event::VirtualKeyCode::D =>
 							{
-								// TODO: use same key to cycle through cell data
-								// too
-
-								dindex = (dindex + 1) % model.point_data.len();
+								let name;
+								dindex = (dindex + 1) % data_len;
 								comp = 0;
-								render_model.bind_point_data(dindex, comp, &model, &display);
+
+								// Cycle through point data first, then go to
+								// cells if we're past the end of the points.
+								if dindex < model.point_data.len()
+								{
+									render_model.bind_point_data(dindex, comp, &model, &display);
+									name = &model.point_data[dindex].name;
+								}
+								else
+								{
+									let cindex = dindex - model.point_data.len();
+									render_model.bind_cell_data(cindex, comp, &model, &display);
+									name = &model.cell_data[cindex].name;
+								}
 
 								println!("Cycling data array");
-								println!("Data name = {}", model.point_data[dindex].name);
+								println!("Data name = {}", name);
 								println!("Data comp = {}\n", comp);
 							}
 							event::VirtualKeyCode::C =>
 							{
-								comp = (comp + 1) % model.point_data[dindex].num_comp;
-								render_model.bind_point_data(dindex, comp, &model, &display);
+								//render_model.bind_point_data(dindex, comp, &model, &display);
+
+								let name;
+								if dindex < model.point_data.len()
+								{
+									comp = (comp + 1) % model.point_data[dindex].num_comp;
+									render_model.bind_point_data(dindex, comp, &model, &display);
+									name = &model.point_data[dindex].name;
+								}
+								else
+								{
+									let cindex = dindex - model.point_data.len();
+									comp = (comp + 1) % model.cell_data[cindex].num_comp;
+									render_model.bind_cell_data(cindex, comp, &model, &display);
+									name = &model.cell_data[cindex].name;
+								}
 
 								println!("Cycling data comp");
-								println!("Data name = {}", model.point_data[dindex].name);
+								println!("Data name = {}", name);
 								println!("Data comp = {}\n", comp);
 							}
 							_ => {}
