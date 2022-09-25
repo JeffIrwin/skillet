@@ -19,7 +19,18 @@ Provide the `.vtu` filename as an argument:
 
 You can try one of the provided `.vtu` files in the `./res/` directory.
 
-## Mouse and key controls
+Equivalently:
+
+    cargo build
+    # or "cargo build --release"
+    
+    ./target/debug/skillet.exe ./res/teapot.vtu
+    
+    # or "./target/release/skillet.exe ./res/teapot.vtu"
+
+<!-- --------------------------------------------------------------- -->
+
+## Mouse controls
 
 Mouse controls mostly follow the ParaView conventions.
 
@@ -35,11 +46,17 @@ LMB means "left mouse button".
 
 Z pan is similar to scroll zooming.
 
+<!-- --------------------------------------------------------------- -->
+
+## Key controls
+
 ### `c`: cycle vector/tensor component
 
 ### `d`: cycle point data or cell data array
 
 ### `e`: toggle edge visibility
+
+<!-- --------------------------------------------------------------- -->
 
 # Features
 
