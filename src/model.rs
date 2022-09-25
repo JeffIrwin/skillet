@@ -8,7 +8,7 @@ use crate::utils;
 //****************
 
 // 3P
-use vtkio::{model, model::{Attribute, DataArray, DataSet, ElementType, Vtk}};
+use vtkio::{model::{Attribute, DataArray, DataSet, ElementType, Vtk}};
 
 //==============================================================================
 
@@ -31,6 +31,9 @@ pub fn cell_tris(t: Type) -> Vec<usize>
 {
 	// Return an array of indices of triangle vertices that make up a more
 	// complex cell type
+	//
+	// Ref:  http://www.princeton.edu/~efeibush/viscourse/vtk.pdf
+	//
 	match t
 	{
 		Type::Tri => vec!
@@ -51,6 +54,8 @@ pub fn cell_tris(t: Type) -> Vec<usize>
 	}
 }
 
+//==============================================================================
+
 pub fn cell_num_verts(t: Type) -> usize
 {
 	match t
@@ -59,6 +64,39 @@ pub fn cell_num_verts(t: Type) -> usize
 		Type::Hex => 8,
 
 		Type::Invalid => 0,
+	}
+}
+
+pub fn cell_edges(t: Type) -> Vec<usize>
+{
+	// Return an array of edge vertices that make up a more complex cell type
+	//
+	// TODO: implement display
+	match t
+	{
+		Type::Tri => vec!
+			[
+				0, 1,
+				1, 2,
+				2, 0,
+			],
+		Type::Hex => vec!
+			[
+				0, 1,
+				1, 2,
+				2, 3,
+				3, 0,
+				4, 5,
+				5, 6,
+				6, 7,
+				7, 4,
+				0, 4,
+				1, 5,
+				2, 6,
+				3, 7,
+			],
+
+		Type::Invalid => vec![],
 	}
 }
 
@@ -73,7 +111,6 @@ pub struct Model
 
 	pub points: Vec<f32>,
 
-	// TODO: abstract away from vtkio's types
 	pub types  : Vec<Type>,
 	pub cells  : Vec<u64>,
 	pub offsets: Vec<u64>,
@@ -108,21 +145,56 @@ impl Model
 			point_data: Vec::new(),
 		}
 	}
+
+	//****************
+
+	pub fn tris(&self) -> Vec<u64>
+	{
+		// TODO: can this be done without looking up tris again, and without
+		// saving tris to memory as a struct member?  Can RenderModel indices be
+		// used instead?  Tri lookup is only performed on loading and on
+		// bind_point_data() for changing data arrays, so it doesn't seem worth
+		// saving in memory.
+
+		// Capacity could be set ahead of time for tris with an extra pass over
+		// cell types to count triangles
+		let mut tris = Vec::new();
+		for i in 0 .. self.types.len() as usize
+		{
+			let t = cell_tris(self.types[i]);
+			let nv = cell_num_verts(self.types[i]);
+			let nt = t.len() / NT;
+
+			//println!("nt = {}", nt);
+
+			for it in 0 .. nt as usize
+			{
+				let i0 = self.offsets[i] as usize - nv + t[NT * it + 0];
+				let i1 = self.offsets[i] as usize - nv + t[NT * it + 1];
+				let i2 = self.offsets[i] as usize - nv + t[NT * it + 2];
+
+				tris.push(self.cells[i0]);
+				tris.push(self.cells[i1]);
+				tris.push(self.cells[i2]);
+			}
+		}
+		tris
+	}
 }
 
 //****************
 
-// Split position and texture coordinates into separate arrays.  That way we
-// can change texture coordinates (e.g. rescale a colorbar range or load
-// a different result) without sending the position arrays to the GPU again
+// Split position and texture coordinates into separate arrays.  That way we can
+// change texture coordinates (e.g. rescale a colorbar range or load a different
+// data array) without sending the position arrays to the GPU again
 
 #[derive(Copy, Clone, Debug)]
-pub struct Node
+pub struct Vert
 {
-	// 3D node
+	// 3D vert
 	position: [f32; ND]
 }
-glium::implement_vertex!(Node, position);
+glium::implement_vertex!(Vert, position);
 
 // Even vectors and tensors are be rendered as "scalars", since you can
 // only colormap one component (or magnitude) at a time, which is a scalar
@@ -147,7 +219,7 @@ pub struct RenderModel
 	// The RenderModel struct is an interface layer between the Model and
 	// glium's GL array/buffer object bindings
 
-	pub vertices: glium::VertexBuffer<Node  >,
+	pub vertices: glium::VertexBuffer<Vert  >,
 	pub normals : glium::VertexBuffer<Normal>,
 	pub scalar  : glium::VertexBuffer<Scalar>,
 	pub indices : glium::index::NoIndices,
@@ -159,62 +231,18 @@ impl RenderModel
 
 	pub fn new(m: &Model, facade: &dyn glium::backend::Facade) -> RenderModel
 	{
-		// Capacity could be set ahead of time for tris with an extra pass over
-		// cell types to count triangles
-		let mut tris = Vec::new();
-		for i in 0 .. m.types.len() as usize
-		{
-
-			//if m.types[i] == Type::Tri
-			//{
-			//	tris.push(m.cells[ (m.offsets[i as usize] - 3) as usize ] as u32 );
-			//	tris.push(m.cells[ (m.offsets[i as usize] - 2) as usize ] as u32 );
-			//	tris.push(m.cells[ (m.offsets[i as usize] - 1) as usize ] as u32 );
-			//}
-
-			let t = cell_tris(m.types[i]);
-			let nv = cell_num_verts(m.types[i]);
-			let nt = t.len() / NT;
-
-			println!("nt = {}", nt);
-
-			for it in 0 .. nt as usize
-			{
-				let i0 = m.offsets[i] as usize - nv + t[NT * it + 0] as usize;
-				let i1 = m.offsets[i] as usize - nv + t[NT * it + 1] as usize;
-				let i2 = m.offsets[i] as usize - nv + t[NT * it + 2] as usize;
-
-				tris.push(m.cells[i0]);
-				tris.push(m.cells[i1]);
-				tris.push(m.cells[i2]);
-			}
-
-		}
-		//println!("tris = {:?}", tris);
-
-		// TODO: push other cell types to other buffers.  Draw them with
-		// separate calls to target.draw().  Since vertices are duplicated per
-		// cell, there need to be parallel vertex and scalar arrays too.  We
-		// could just push every cell type to a big list of tris, but that
-		// wouldn't allow correct edge display or advanced filters that treat
-		// data at the cell level.
+		let tris = m.tris();
 
 		// Split scalar handling to a separate fn.  Mesh geometry will only be
-		// loaded once, but scalars may be processed multiple times as the user
-		// cycles through results to display
+		// loaded once, but scalars are processed multiple times as the user
+		// cycles through data to display
 
-		let mut nodes   = Vec::with_capacity(tris.len());
-		let mut scalar  = Vec::with_capacity(tris.len());
+		// You would think that normals could be 1/3 this size, but they need to
+		// be duplicated for each vertex of a triangle for sharp edge shading
+
+		let mut verts   = Vec::with_capacity(tris.len());
 		let mut normals = Vec::with_capacity(tris.len());
-
-		// Point data index
-		let ip = 0;//1;
-
-		// TODO: don't bind scalar like this.  Just call bind_point_data()
-		// before returning
-		//
-		// Get min/max of scalar
-		let (smin, smax) = utils::get_bounds(&m.point_data[ip].data);
+		let scalar  = Vec::new();
 
 		for i in 0 .. tris.len() / ND
 		{
@@ -222,22 +250,19 @@ impl RenderModel
 			// a single triangle
 			let mut p: [f32; ND*ND] = [0.0; ND*ND];
 
+			// Some of these ND's should be NT's, not that it makes a difference
 			for j in 0 .. ND
 			{
 				p[ND*j + 0] = m.points[ND*tris[ND*i + j] as usize + 0];
 				p[ND*j + 1] = m.points[ND*tris[ND*i + j] as usize + 1];
 				p[ND*j + 2] = m.points[ND*tris[ND*i + j] as usize + 2];
 
-				nodes.push(Node{position:
+				verts.push(Vert{position:
 					[
 						p[ND*j + 0],
 						p[ND*j + 1],
 						p[ND*j + 2],
 					]});
-
-				let s = m.point_data[ip].data[tris[ND*i + j] as usize];
-				scalar.push(Scalar{tex_coord:
-					((s - smin) / (smax - smin)) as f32 });
 			}
 
 			let p01 = sub(&p[3..6], &p[0..3]);
@@ -258,20 +283,24 @@ impl RenderModel
 			}
 		}
 
-		//println!("node   0 = {:?}", nodes[0]);
-		//println!("node   1 = {:?}", nodes[1]);
-		//println!("node   2 = {:?}", nodes[2]);
+		//println!("vert   0 = {:?}", verts[0]);
+		//println!("vert   1 = {:?}", verts[1]);
+		//println!("vert   2 = {:?}", verts[2]);
 		//println!("normal 0 = {:?}", normals[0]);
 
-		RenderModel
+		let mut render_model = RenderModel
 		{
-			vertices: glium::VertexBuffer::new(facade, &nodes  ).unwrap(),
+			vertices: glium::VertexBuffer::new(facade, &verts  ).unwrap(),
 			normals : glium::VertexBuffer::new(facade, &normals).unwrap(),
 			scalar  : glium::VertexBuffer::new(facade, &scalar ).unwrap(),
 
 			indices : glium::index::NoIndices(
 				glium::index::PrimitiveType::TrianglesList),
-		}
+		};
+
+		render_model.bind_point_data(0, 0, &m, facade);
+
+		render_model
 	}
 
 	//****************
@@ -286,41 +315,7 @@ impl RenderModel
 			panic!("Component is out of bounds");
 		}
 
-		// TODO: can this be done without looking up tris again, and without
-		// saving tris to memory as a struct member?  Can indices be used
-		// instead?  If not, refactor this into a fn also used by new().
-		//
-		// Capacity could be set ahead of time for tris with an extra pass over
-		// cell types to count triangles
-		let mut tris = Vec::new();
-		for i in 0 .. m.types.len() as usize
-		{
-
-			//if m.types[i] == Type::Tri
-			//{
-			//	tris.push(m.cells[ (m.offsets[i as usize] - 3) as usize ] as u32 );
-			//	tris.push(m.cells[ (m.offsets[i as usize] - 2) as usize ] as u32 );
-			//	tris.push(m.cells[ (m.offsets[i as usize] - 1) as usize ] as u32 );
-			//}
-
-			let t = cell_tris(m.types[i]);
-			let nv = cell_num_verts(m.types[i]);
-			let nt = t.len() / NT;
-
-			println!("nt = {}", nt);
-
-			for it in 0 .. nt as usize
-			{
-				let i0 = m.offsets[i] as usize - nv + t[NT * it + 0] as usize;
-				let i1 = m.offsets[i] as usize - nv + t[NT * it + 1] as usize;
-				let i2 = m.offsets[i] as usize - nv + t[NT * it + 2] as usize;
-
-				tris.push(m.cells[i0]);
-				tris.push(m.cells[i1]);
-				tris.push(m.cells[i2]);
-			}
-		}
-
+		let tris = m.tris();
 		let mut scalar  = Vec::with_capacity(tris.len());
 		let step = m.point_data[index].num_comp;
 
@@ -330,16 +325,12 @@ impl RenderModel
 			.iter().skip(comp).step_by(step).copied().collect::<Vec<f32>>()));
 		//let (smin, smax) = utils::get_bounds(&m.point_data[index].data);
 
-		for i in 0 .. tris.len() / ND
+		for i in 0 .. tris.len()
 		{
-			for j in 0 .. ND
-			{
-				let s = m.point_data[index].data[
-					step * tris[ND*i + j] as usize + comp];
+			let s = m.point_data[index].data[step * tris[i] as usize + comp];
 
-				scalar.push(Scalar{tex_coord:
-					((s - smin) / (smax - smin)) as f32 });
-			}
+			scalar.push(Scalar{tex_coord:
+				((s - smin) / (smax - smin)) as f32 });
 		}
 
 		self.scalar = glium::VertexBuffer::new(facade, &scalar).unwrap();
@@ -386,7 +377,7 @@ pub fn import(f: std::path::PathBuf)
 	{
 		// To do?  Render each piece as if it's a totally separate VTK file.
 		// They could have unrelated numbers of points, number and type of
-		// results, etc.
+		// data arrays, etc.
 		unimplemented!("multiple pieces");
 	}
 
@@ -448,7 +439,8 @@ pub fn import(f: std::path::PathBuf)
 
 	let mut point_data = Vec::new();
 
-	// Iterate attributes like this to get all pointdata (TODO: cell data)
+	// Iterate attributes like this to get all pointdata (TODO: make this a fn
+	// and parse cell data too)
 	for attrib in &piece.data.point
 	{
 		println!("Attribute:");
@@ -559,9 +551,9 @@ pub fn import(f: std::path::PathBuf)
 	println!("point_data.len() = {}", point_data.len());
 	for d in &point_data
 	{
-		println!("name     = {}", d.name);
-		println!("num_comp = {}", d.num_comp);
-		println!("len      = {}", d.data.len());
+		println!("\tname     = {}", d.name);
+		println!("\tnum_comp = {}", d.num_comp);
+		println!("\tlen      = {}", d.data.len());
 		println!();
 	}
 

@@ -43,7 +43,7 @@ fn main()
 		println!("Error: bad command-line arguments");
 		println!("Usage:");
 		println!();
-		println!("    {} FILE.VTK", exe);
+		println!("\t{} FILE.VTK", exe);
 		println!();
 		return;
 	}
