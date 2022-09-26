@@ -497,7 +497,7 @@ impl RenderModel
 			}
 			//println!("_i, ic, iv = {}, {}, {}", _i, ic, iv);
 
-			let s = m.cell_data[index].data[ic as usize + comp];
+			let s = m.cell_data[index].data[step * ic as usize + comp];
 
 			scalar.push(Scalar{tex_coord:
 				((s - smin) / (smax - smin)) as f32 });
