@@ -31,6 +31,9 @@ pub enum Type
 
 pub fn cell_tris(t: Type) -> Vec<usize>
 {
+	// These could be member fn's, but unit testing might be easier if they're
+	// not.
+	//
 	// Return an array of indices of triangle vertices that make up a more
 	// complex cell type
 	//
@@ -91,6 +94,8 @@ pub fn cell_tris(t: Type) -> Vec<usize>
 pub fn cell_num_verts(t: Type) -> usize
 {
 	// max(cell_tris) + 1
+	//
+	// TODO: ^ verify with unit tests
 	match t
 	{
 		Type::Tri     => 3,
@@ -117,6 +122,22 @@ pub fn cell_edges(t: Type) -> Vec<usize>
 				1, 2,
 				2, 0,
 			],
+		Type::Quad    => vec!
+			[
+				0, 1,
+				1, 2,
+				2, 3,
+				3, 0,
+			],
+		Type::Tet     => vec!
+			[
+				0, 1,
+				0, 2,
+				0, 3,
+				1, 2,
+				1, 3,
+				2, 3,
+			],
 		Type::Hex => vec!
 			[
 				0, 1,
@@ -132,9 +153,27 @@ pub fn cell_edges(t: Type) -> Vec<usize>
 				2, 6,
 				3, 7,
 			],
+		Type::Wedge   => vec!
+			[
+				0, 1,   1, 2,   2, 0,
+				3, 4,   4, 5,   5, 3,
+				0, 3,
+				1, 4,
+				2, 5,
+			],
+		Type::Pyramid => vec!
+			[
+				0, 1,
+				1, 2,
+				2, 3,
+				3, 0,
+				0, 4,
+				1, 4,
+				2, 4,
+				3, 4,
+			],
 
 		Type::Invalid => vec![],
-		_ => vec![], // TODO
 	}
 }
 
