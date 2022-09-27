@@ -75,9 +75,12 @@ fn main()
 
 	let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
 	let display = glium::Display::new(wb, cb, &event_loop).unwrap();
-
-	let colormap = get_colormap(&display);
 	let bg_colormap = get_bg_colormap(&display);
+
+	// Colormap index in JSON res file
+	let mut map_index = 0;
+
+	let mut colormap = get_colormap(&mut map_index, &display);
 
 	#[derive(Copy, Clone, Debug)]
 	struct Node2
@@ -516,7 +519,14 @@ fn main()
 							event::VirtualKeyCode::E =>
 							{
 								render_model.edge_visibility = !render_model.edge_visibility;
-								println!("Toggling edge visibility");
+								println!("Toggling edge visibility {}",
+									render_model.edge_visibility);
+							}
+							event::VirtualKeyCode::M =>
+							{
+								println!("Cycling colormap");
+								map_index += 1;
+								colormap = get_colormap(&mut map_index, &display);
 							}
 
 							_ => {}
