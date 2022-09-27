@@ -56,6 +56,8 @@ Z pan is similar to scroll zooming.
 
 ### `e`: toggle edge visibility
 
+### `m`: cycle colormap
+
 <!-- --------------------------------------------------------------- -->
 
 # Features
