@@ -122,12 +122,11 @@ fn main()
 	let mut dindex = 0;
 	let mut comp = 0;
 
-	let mut render_model = RenderModel::new(&model, &display);
+	// Data array index for warping by vector.  Initial value means no warping
+	let mut warp_index = model.point_data.len();
+	let mut warp_factor = 1.0;
 
-	//// There's no need to bind a scalar here.  RenderModel already binds the
-	//// first one on construction.
-	//render_model.bind_cell_data(dindex, comp, &model, &display);
-	//render_model.bind_point_data(dindex, comp, &model, &display);
+	let mut render_model = RenderModel::new(&model, &display);
 
 	let data_len = model.point_data.len() + model.cell_data.len();
 
@@ -525,8 +524,24 @@ fn main()
 							event::VirtualKeyCode::M =>
 							{
 								println!("Cycling colormap");
+
+								// Modulo wrapping happens inside
+								// get_colormap().  Maybe I should make
+								// bind_*_data() work like that too.
 								map_index += 1;
 								colormap = get_colormap(&mut map_index, &display);
+							}
+							event::VirtualKeyCode::W =>
+							{
+								println!("Cycling warp");
+								warp_index += 1;
+								render_model.warp(&mut warp_index, warp_factor, &model, &display);
+
+								// TODO: key bindings to increase/decrease warp.
+								// Ctrl+W and Shift+W.  Increment by how much?
+								// Maybe by a percentage, but negative warps
+								// should also be allowed. Document 'w' and
+								// other key(s)
 							}
 
 							_ => {}

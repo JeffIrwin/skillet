@@ -462,6 +462,101 @@ impl RenderModel
 
 	//****************
 
+	pub fn warp(&mut self, index: &mut usize, factor: f32, m: &Model,
+		facade: &dyn glium::backend::Facade)
+	{
+		// Warp vertex positions by vector point data.  Cell data cannot be
+		// applied as a warp.
+		//
+		// Unlike ParaView, warping does not reset the color contour to
+		// a different data array.  Instead, we maintain the same scalar texture
+		// as before.
+
+		//*index += 1;
+		if *index >= m.point_data.len() + 1
+		{
+			*index = 0;
+		}
+
+		// We can't just return early here, because we need to reset positions
+		// to their original values to undo the previous warp
+		let enable_warp = *index < m.point_data.len();
+
+		if enable_warp
+		{
+			if m.point_data[*index].num_comp != ND
+			{
+				// Only vectors can warp.  TODO: auto cycle to next vector (don't
+				// infinite loop)
+				return;
+			}
+
+			println!("Warping by \"{}\"", m.point_data[*index].name);
+		}
+
+		let tris = m.tris();
+		let mut verts   = Vec::with_capacity(tris.len());
+
+		// Warping alters normals too
+		let mut normals = Vec::with_capacity(tris.len());
+
+		for i in 0 .. tris.len() / ND
+		{
+			// Local array containing the coordinates of the vertices of
+			// a single triangle
+			let mut p: [f32; ND*ND] = [0.0; ND*ND];
+
+			// Some of these ND's should be NT's, not that it makes a difference
+			for j in 0 .. ND
+			{
+				p[ND*j + 0] = m.points[ND*tris[ND*i + j] as usize + 0];
+				p[ND*j + 1] = m.points[ND*tris[ND*i + j] as usize + 1];
+				p[ND*j + 2] = m.points[ND*tris[ND*i + j] as usize + 2];
+
+				let (dx, dy, dz) = if enable_warp
+				{(
+					m.point_data[*index].data[ND*tris[ND*i + j] as usize + 0],
+					m.point_data[*index].data[ND*tris[ND*i + j] as usize + 1],
+					m.point_data[*index].data[ND*tris[ND*i + j] as usize + 2],
+				)}
+				else
+				{(
+					0.0, 0.0, 0.0,
+				)};
+
+				p[ND*j + 0] += factor * dx;
+				p[ND*j + 1] += factor * dy;
+				p[ND*j + 2] += factor * dz;
+
+				verts.push(Vert{position:
+					[
+						p[ND*j + 0],
+						p[ND*j + 1],
+						p[ND*j + 2],
+					]});
+			}
+
+			let p01 = sub(&p[3..6], &p[0..3]);
+			let p02 = sub(&p[6..9], &p[0..3]);
+			let nrm = normalize(&cross(&p01, &p02));
+			for _j in 0 .. ND
+			{
+				normals.push(Normal{normal:
+					[
+						-nrm[0],
+						-nrm[1],
+						-nrm[2],
+					]
+				});
+			}
+		}
+
+		self.vertices = glium::VertexBuffer::new(facade, &verts  ).unwrap();
+		self.normals  = glium::VertexBuffer::new(facade, &normals).unwrap();
+	}
+
+	//****************
+
 	pub fn bind_point_data(&mut self, index: usize, comp: usize, m: &Model,
 		facade: &dyn glium::backend::Facade)
 	{
