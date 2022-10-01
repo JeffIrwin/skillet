@@ -48,15 +48,27 @@ Z pan is similar to scroll zooming.
 
 <!-- --------------------------------------------------------------- -->
 
-## Key controls
+## Key controls (case-sensitive)
 
-### `c`: cycle vector/tensor component
+### `c`: cycle vector/tensor __c__omponent
 
 ### `d`: cycle point data or cell data array
 
 ### `e`: toggle edge visibility
 
 ### `m`: cycle colormap
+
+### `w`: cycle warp by vector point data array
+
+Cell data arrays, scalars, and tensors cannot be used as a warp basis.  Only
+point data vector arrays are a valid basis.
+
+To turn off warp by vector, continue cycling with `w` until all vectors have
+been cycled through.
+
+### `Ctrl+w`: Decrease warp by vector scale factor
+
+### `Shift+w`: Increase warp by vector scale factor
 
 <!-- --------------------------------------------------------------- -->
 
