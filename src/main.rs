@@ -79,66 +79,7 @@ fn main()
 	let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
 	let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
-	//let bg_colormap = get_bg_colormap(&display);
 	let bg = Background::new(&display);
-
-	// Background shader
-	let bg_vertex_shader_src = r#"
-		#version 150
-
-		in vec2 position2;
-		in float tex_coord;
-		out float v_tex_coord;
-
-		void main() {
-			v_tex_coord = tex_coord;
-			gl_Position = vec4(position2, 0, 1.0);
-		}
-	"#;
-
-	let bg_fragment_shader_src = r#"
-		#version 150
-
-		in float v_tex_coord;
-		out vec4 color;
-
-		uniform sampler1D bg_tex;
-
-		void main() {
-			color = texture(bg_tex, v_tex_coord);
-		}
-	"#;
-
-	#[derive(Copy, Clone, Debug)]
-	struct Node2
-	{
-		// 2D node for background
-		position2: [f32; N2],
-		tex_coord: f32,
-	}
-	implement_vertex!(Node2, position2, tex_coord);
-
-	// background vertices
-	let bg_verts = vec!
-		[
-			Node2 { position2: [-1.0, -1.0], tex_coord: 0.5, },
-			Node2 { position2: [ 1.0, -1.0], tex_coord: 1.0, },
-			Node2 { position2: [ 1.0,  1.0], tex_coord: 0.5, },
-			Node2 { position2: [-1.0,  1.0], tex_coord: 0.0, },
-		];
-
-	let bg_tri_vbuf = glium::VertexBuffer::new(&display, &bg_verts).unwrap();
-
-	// No dupe
-	let bg_tri_ibuf = glium::IndexBuffer::new(&display,
-		glium::index::PrimitiveType::TrianglesList,
-		&[
-			0, 1, 2,
-			2, 3, 0 as u32
-		]).unwrap();
-
-	let bg_program = glium::Program::from_source(&display, bg_vertex_shader_src,
-			bg_fragment_shader_src, None).unwrap();
 
 	// Colormap index in JSON res file
 	let mut map_index = 0;
@@ -670,7 +611,7 @@ fn main()
 			.. Default::default()
 		};
 
-		target.draw(&bg_tri_vbuf, &bg_tri_ibuf, &bg_program,
+		target.draw(&bg.vertices, &bg.indices, &bg.program,
 			&uniforms, &params).unwrap();
 
 		// Clearing the depth again here forces the background to the back
