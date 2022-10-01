@@ -50,7 +50,7 @@ Z pan is similar to scroll zooming.
 
 ## Key controls (case-sensitive)
 
-### `c`: cycle vector/tensor __c__omponent
+### `c`: cycle vector/tensor component
 
 ### `d`: cycle point data or cell data array
 
