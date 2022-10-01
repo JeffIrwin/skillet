@@ -491,7 +491,7 @@ impl RenderModel
 				return;
 			}
 
-			println!("Warping by \"{}\"", m.point_data[*index].name);
+			//println!("Warping by \"{}\"", m.point_data[*index].name);
 		}
 
 		let tris = m.tris();
@@ -500,6 +500,7 @@ impl RenderModel
 		// Warping alters normals too
 		let mut normals = Vec::with_capacity(tris.len());
 
+		// TODO: make a fn for this loop and combine with new()
 		for i in 0 .. tris.len() / ND
 		{
 			// Local array containing the coordinates of the vertices of
@@ -550,6 +551,8 @@ impl RenderModel
 				});
 			}
 		}
+
+		// TODO: warp edges too
 
 		self.vertices = glium::VertexBuffer::new(facade, &verts  ).unwrap();
 		self.normals  = glium::VertexBuffer::new(facade, &normals).unwrap();

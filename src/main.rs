@@ -125,6 +125,7 @@ fn main()
 	// Data array index for warping by vector.  Initial value means no warping
 	let mut warp_index = model.point_data.len();
 	let mut warp_factor = 1.0;
+	let warp_increment = 0.1;
 
 	let mut render_model = RenderModel::new(&model, &display);
 
@@ -289,6 +290,9 @@ fn main()
 	let mut mmb = false;
 	let mut rmb = false;
 
+	let mut ctrl  = false;
+	let mut shift = false;
+
 	// Mouse position from last frame
 	let mut x0 = 0.0;
 	let mut y0 = 0.0;
@@ -329,6 +333,12 @@ fn main()
 					*control_flow = glutin::event_loop::ControlFlow::Exit;
 					return;
 
+				},
+				event::WindowEvent::ModifiersChanged(modifiers_state) =>
+				{
+					//println!("modifiers_state = {:?}", modifiers_state);
+					ctrl  = modifiers_state.ctrl ();
+					shift = modifiers_state.shift();
 				},
 				glutin::event::WindowEvent::MouseInput  {state, button, ..} =>
 				{
@@ -462,7 +472,33 @@ fn main()
 				{
 					//println!("input = {:?}", input);
 
-					if input.state == PRESSED
+					if ctrl && input.state == PRESSED
+					{
+						match input.virtual_keycode.unwrap()
+						{
+							event::VirtualKeyCode::W =>
+							{
+								//println!("Ctrl+W");
+								warp_factor -= warp_increment;
+								render_model.warp(&mut warp_index, warp_factor, &model, &display);
+							}
+							_ => {}
+						}
+					}
+					else if shift && input.state == PRESSED
+					{
+						match input.virtual_keycode.unwrap()
+						{
+							event::VirtualKeyCode::W =>
+							{
+								//println!("Shift+W");
+								warp_factor += warp_increment;
+								render_model.warp(&mut warp_index, warp_factor, &model, &display);
+							}
+							_ => {}
+						}
+					}
+					else if input.state == PRESSED
 					{
 						match input.virtual_keycode.unwrap()
 						{
