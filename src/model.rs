@@ -333,13 +333,94 @@ pub struct RenderModel
 	pub edge_indices: glium::index::NoIndices,
 }
 
+fn verts(m: &Model) -> (Vec<Vert>, Vec<Normal>, Vec<Vert>)
+{
+	let tris = m.tris();
+
+	let mut verts   = Vec::with_capacity(tris.len());
+	let mut normals = Vec::with_capacity(tris.len());
+
+	for i in 0 .. tris.len() / NT
+	{
+		// Local array containing the coordinates of the vertices of
+		// a single triangle
+		let mut p: [f32; NT * ND] = [0.0; NT * ND];
+
+		// Some of these ND's should be NT's, not that it makes a difference
+		for j in 0 .. NT
+		{
+			p[NT*j + 0] = m.points[ND*tris[NT*i + j] as usize + 0];
+			p[NT*j + 1] = m.points[ND*tris[NT*i + j] as usize + 1];
+			p[NT*j + 2] = m.points[ND*tris[NT*i + j] as usize + 2];
+
+			verts.push(Vert{position:
+				[
+					p[NT*j + 0],
+					p[NT*j + 1],
+					p[NT*j + 2],
+				]});
+		}
+
+		let p01 = sub(&p[3..6], &p[0..3]);
+		let p02 = sub(&p[6..9], &p[0..3]);
+
+		let nrm = normalize(&cross(&p01, &p02));
+
+		// Use inward normal for RH coordinate system
+		for _j in 0 .. ND
+		{
+			normals.push(Normal{normal:
+				[
+					-nrm[0],
+					-nrm[1],
+					-nrm[2],
+				]
+			});
+		}
+	}
+
+	//println!("vert   0 = {:?}", verts[0]);
+	//println!("vert   1 = {:?}", verts[1]);
+	//println!("vert   2 = {:?}", verts[2]);
+	//println!("normal 0 = {:?}", normals[0]);
+
+	let edges = m.edges();
+	let mut edge_verts = Vec::with_capacity(edges.len());
+	for i in 0 .. edges.len() / NE
+	{
+		// This could be half the size.  Unlike normal calculation above, we
+		// only need to push 1 vert at a time without keeping the whole edge
+		// in memory.
+		let mut p: [f32; NE * ND] = [0.0; NE * ND];
+
+		for j in 0 .. NE
+		{
+			p[NE*j + 0] = m.points[ND*edges[NE*i + j] as usize + 0];
+			p[NE*j + 1] = m.points[ND*edges[NE*i + j] as usize + 1];
+			p[NE*j + 2] = m.points[ND*edges[NE*i + j] as usize + 2];
+
+			// If we map edge to triangle, we could add a bit of the outward
+			// normal to the edge position to fix z-fighting.  Instead, just
+			// increase polygon_offset and/or line_width in DrawParameters
+
+			edge_verts.push(Vert{position:
+				[
+					p[NE*j + 0],// + 0.001,
+					p[NE*j + 1],// + 0.001,
+					p[NE*j + 2],// + 0.001,
+				]});
+		}
+	}
+
+	(verts, normals, edge_verts)
+}
+
 impl RenderModel
 {
 	//****************
 
 	pub fn new(m: &Model, facade: &dyn glium::backend::Facade) -> RenderModel
 	{
-		let tris = m.tris();
 
 		// Split scalar handling to a separate fn.  Mesh geometry will only be
 		// loaded once, but scalars are processed multiple times as the user
@@ -348,81 +429,9 @@ impl RenderModel
 		// You would think that normals could be 1/3 this size, but they need to
 		// be duplicated for each vertex of a triangle for sharp edge shading
 
-		let mut verts   = Vec::with_capacity(tris.len());
-		let mut normals = Vec::with_capacity(tris.len());
 		let scalar  = Vec::new();
 
-		for i in 0 .. tris.len() / NT
-		{
-			// Local array containing the coordinates of the vertices of
-			// a single triangle
-			let mut p: [f32; NT * ND] = [0.0; NT * ND];
-
-			// Some of these ND's should be NT's, not that it makes a difference
-			for j in 0 .. NT
-			{
-				p[NT*j + 0] = m.points[ND*tris[NT*i + j] as usize + 0];
-				p[NT*j + 1] = m.points[ND*tris[NT*i + j] as usize + 1];
-				p[NT*j + 2] = m.points[ND*tris[NT*i + j] as usize + 2];
-
-				verts.push(Vert{position:
-					[
-						p[NT*j + 0],
-						p[NT*j + 1],
-						p[NT*j + 2],
-					]});
-			}
-
-			let p01 = sub(&p[3..6], &p[0..3]);
-			let p02 = sub(&p[6..9], &p[0..3]);
-
-			let nrm = normalize(&cross(&p01, &p02));
-
-			// Use inward normal for RH coordinate system
-			for _j in 0 .. ND
-			{
-				normals.push(Normal{normal:
-					[
-						-nrm[0],
-						-nrm[1],
-						-nrm[2],
-					]
-				});
-			}
-		}
-
-		//println!("vert   0 = {:?}", verts[0]);
-		//println!("vert   1 = {:?}", verts[1]);
-		//println!("vert   2 = {:?}", verts[2]);
-		//println!("normal 0 = {:?}", normals[0]);
-
-		let edges = m.edges();
-		let mut edge_verts = Vec::with_capacity(edges.len());
-		for i in 0 .. edges.len() / NE
-		{
-			// This could be half the size.  Unlike normal calculation above, we
-			// only need to push 1 vert at a time without keeping the whole edge
-			// in memory.
-			let mut p: [f32; NE * ND] = [0.0; NE * ND];
-
-			for j in 0 .. NE
-			{
-				p[NE*j + 0] = m.points[ND*edges[NE*i + j] as usize + 0];
-				p[NE*j + 1] = m.points[ND*edges[NE*i + j] as usize + 1];
-				p[NE*j + 2] = m.points[ND*edges[NE*i + j] as usize + 2];
-
-				// If we map edge to triangle, we could add a bit of the outward
-				// normal to the edge position to fix z-fighting.  Instead, just
-				// increase polygon_offset and/or line_width in DrawParameters
-
-				edge_verts.push(Vert{position:
-					[
-						p[NE*j + 0],// + 0.001,
-						p[NE*j + 1],// + 0.001,
-						p[NE*j + 2],// + 0.001,
-					]});
-			}
-		}
+		let (verts, normals, edge_verts) = verts(&m);
 
 		let mut render_model = RenderModel
 		{
