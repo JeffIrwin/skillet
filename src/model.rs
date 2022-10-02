@@ -333,7 +333,8 @@ pub struct RenderModel
 	pub edge_indices: glium::index::NoIndices,
 }
 
-fn verts(m: &Model) -> (Vec<Vert>, Vec<Normal>, Vec<Vert>)
+fn verts(m: &Model, enable_warp: bool, index: usize, factor: f32)
+	-> (Vec<Vert>, Vec<Normal>, Vec<Vert>)
 {
 	let tris = m.tris();
 
@@ -352,6 +353,21 @@ fn verts(m: &Model) -> (Vec<Vert>, Vec<Normal>, Vec<Vert>)
 			p[NT*j + 0] = m.points[ND*tris[NT*i + j] as usize + 0];
 			p[NT*j + 1] = m.points[ND*tris[NT*i + j] as usize + 1];
 			p[NT*j + 2] = m.points[ND*tris[NT*i + j] as usize + 2];
+
+			let (dx, dy, dz) = if enable_warp
+			{(
+				m.point_data[index].data[ND*tris[NT*i + j] as usize + 0],
+				m.point_data[index].data[ND*tris[NT*i + j] as usize + 1],
+				m.point_data[index].data[ND*tris[NT*i + j] as usize + 2],
+			)}
+			else
+			{(
+				0.0, 0.0, 0.0,
+			)};
+
+			p[NT*j + 0] += factor * dx;
+			p[NT*j + 1] += factor * dy;
+			p[NT*j + 2] += factor * dz;
 
 			verts.push(Vert{position:
 				[
@@ -399,6 +415,21 @@ fn verts(m: &Model) -> (Vec<Vert>, Vec<Normal>, Vec<Vert>)
 			p[NE*j + 1] = m.points[ND*edges[NE*i + j] as usize + 1];
 			p[NE*j + 2] = m.points[ND*edges[NE*i + j] as usize + 2];
 
+			let (dx, dy, dz) = if enable_warp
+			{(
+				m.point_data[index].data[ND*edges[NE*i + j] as usize + 0],
+				m.point_data[index].data[ND*edges[NE*i + j] as usize + 1],
+				m.point_data[index].data[ND*edges[NE*i + j] as usize + 2],
+			)}
+			else
+			{(
+				0.0, 0.0, 0.0,
+			)};
+
+			p[NE*j + 0] += factor * dx;
+			p[NE*j + 1] += factor * dy;
+			p[NE*j + 2] += factor * dz;
+
 			// If we map edge to triangle, we could add a bit of the outward
 			// normal to the edge position to fix z-fighting.  Instead, just
 			// increase polygon_offset and/or line_width in DrawParameters
@@ -429,10 +460,10 @@ impl RenderModel
 		// You would think that normals could be 1/3 this size, but they need to
 		// be duplicated for each vertex of a triangle for sharp edge shading
 
+		let enable_warp = false;
+		let (verts, normals, edge_verts) = verts(&m, enable_warp, 0, 0.0);
+
 		let scalar  = Vec::new();
-
-		let (verts, normals, edge_verts) = verts(&m);
-
 		let mut render_model = RenderModel
 		{
 			vertices: glium::VertexBuffer::new(facade, &verts  ).unwrap(),
@@ -502,68 +533,11 @@ impl RenderModel
 			//println!("Warping by \"{}\"", m.point_data[*index].name);
 		}
 
-		let tris = m.tris();
-		let mut verts   = Vec::with_capacity(tris.len());
+		let (verts, normals, edge_verts) = verts(&m, enable_warp, *index, factor);
 
-		// Warping alters normals too
-		let mut normals = Vec::with_capacity(tris.len());
-
-		// TODO: make a fn for this loop and combine with new()
-		for i in 0 .. tris.len() / ND
-		{
-			// Local array containing the coordinates of the vertices of
-			// a single triangle
-			let mut p: [f32; ND*ND] = [0.0; ND*ND];
-
-			// Some of these ND's should be NT's, not that it makes a difference
-			for j in 0 .. ND
-			{
-				p[ND*j + 0] = m.points[ND*tris[ND*i + j] as usize + 0];
-				p[ND*j + 1] = m.points[ND*tris[ND*i + j] as usize + 1];
-				p[ND*j + 2] = m.points[ND*tris[ND*i + j] as usize + 2];
-
-				let (dx, dy, dz) = if enable_warp
-				{(
-					m.point_data[*index].data[ND*tris[ND*i + j] as usize + 0],
-					m.point_data[*index].data[ND*tris[ND*i + j] as usize + 1],
-					m.point_data[*index].data[ND*tris[ND*i + j] as usize + 2],
-				)}
-				else
-				{(
-					0.0, 0.0, 0.0,
-				)};
-
-				p[ND*j + 0] += factor * dx;
-				p[ND*j + 1] += factor * dy;
-				p[ND*j + 2] += factor * dz;
-
-				verts.push(Vert{position:
-					[
-						p[ND*j + 0],
-						p[ND*j + 1],
-						p[ND*j + 2],
-					]});
-			}
-
-			let p01 = sub(&p[3..6], &p[0..3]);
-			let p02 = sub(&p[6..9], &p[0..3]);
-			let nrm = normalize(&cross(&p01, &p02));
-			for _j in 0 .. ND
-			{
-				normals.push(Normal{normal:
-					[
-						-nrm[0],
-						-nrm[1],
-						-nrm[2],
-					]
-				});
-			}
-		}
-
-		// TODO: warp edges too
-
-		self.vertices = glium::VertexBuffer::new(facade, &verts  ).unwrap();
-		self.normals  = glium::VertexBuffer::new(facade, &normals).unwrap();
+		self.vertices   = glium::VertexBuffer::new(facade, &verts     ).unwrap();
+		self.normals    = glium::VertexBuffer::new(facade, &normals   ).unwrap();
+		self.edge_verts = glium::VertexBuffer::new(facade, &edge_verts).unwrap();
 	}
 
 	//****************
