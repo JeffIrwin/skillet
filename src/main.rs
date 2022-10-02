@@ -7,7 +7,7 @@ use std::io::Cursor;
 
 //****************
 
-// This crate
+// This crate, included in lib
 use skillet::*;
 use crate::colormaps::*;
 use crate::consts::*;
@@ -15,6 +15,7 @@ use crate::math::*;
 use crate::model::*;
 use crate::utils::*;
 
+// Not included in lib
 pub mod background;
 use crate::background::Background;
 
@@ -126,88 +127,8 @@ fn main()
 
 	let data_len = model.point_data.len() + model.cell_data.len();
 
-	let vertex_shader_src = r#"
-		#version 150
-
-		in vec3 position;
-		in vec3 normal;
-		in float tex_coord;
-
-		out vec3 v_normal;
-		out vec3 v_position;
-		out float v_tex_coord;
-
-		uniform mat4 perspective;
-		uniform mat4 view;
-		uniform mat4 model_mat;
-		uniform mat4 world;
-
-		void main()
-		{
-			v_tex_coord = tex_coord;
-			mat4 modelview = view * world * model_mat;
-			v_normal = transpose(inverse(mat3(modelview))) * normal;
-			gl_Position = perspective * modelview * vec4(position, 1.0);
-			v_position = gl_Position.xyz / gl_Position.w;
-		}
-	"#;
-
-	// TODO: Gouraud option
-
-	// Blinn-Phong
-	let fragment_shader_src = r#"
-		#version 150
-
-		in vec3 v_normal;
-		in vec3 v_position;
-		in float v_tex_coord;
-
-		out vec4 color;
-
-		uniform vec3 u_light;
-		uniform sampler1D tex;
-
-		// Some of these parameters, like specular color or shininess, could be
-		// moved into uniforms, or they're probably fine as defaults
-
-		const vec4 specular_color = vec4(0.1, 0.1, 0.1, 1.0);
-
-		vec4 diffuse_color = texture(tex, v_tex_coord);
-		vec4 ambient_color = diffuse_color * 0.1;
-
-		void main()
-		{
-			float diffuse =
-					max(dot(normalize(v_normal), normalize(u_light)), 0.0);
-
-			vec3 camera_dir = normalize(-v_position);
-			vec3 half_dir = normalize(normalize(u_light) + camera_dir);
-			float specular =
-					pow(max(dot(half_dir, normalize(v_normal)), 0.0), 40.0);
-
-			color = ambient_color +  diffuse *  diffuse_color
-			                      + specular * specular_color;
-		}
-	"#;
-
-	let edge_shader_src = r#"
-		#version 150
-		out vec4 color;
-
-		// This could be a uniform
-		const vec4 edge_color = vec4(0.0, 0.0, 0.0, 1.0);
-
-		void main()
-		{
-			color = edge_color;
-		}
-	"#;
-
-	let program = glium::Program::from_source(&display, vertex_shader_src,
-			fragment_shader_src, None).unwrap();
-
-	let edge_program = glium::Program::from_source(&display, vertex_shader_src,
-			edge_shader_src, None).unwrap();
+	let face_program = shaders::face(&display);
+	let edge_program = shaders::edge(&display);
 
 	// Don't scale or translate here.  Model matrix should always be identity
 	// unless I add an option for a user to move one model relative to others
@@ -215,10 +136,6 @@ fn main()
 
 	// This is where transformations happen
 	let mut world = identity_matrix();
-
-	let fov: f32 = PI / 6.0;
-	let zfar  = 1024.0;
-	let znear = 0.1;
 
 	// View must be initialized like this, because subsequent rotations are
 	// performed about its fixed coordinate system.  Set eye from model bounds.
@@ -236,6 +153,7 @@ fn main()
 	let mut mmb = false;
 	let mut rmb = false;
 
+	// Modifier keys
 	let mut ctrl  = false;
 	let mut shift = false;
 
@@ -306,7 +224,6 @@ fn main()
 						},
 						_ => ()
 					}
-
 				},
 				glutin::event::WindowEvent::CursorMoved {position, ..} =>
 				{
@@ -548,6 +465,10 @@ fn main()
 
 		target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
 
+		let fov: f32 = PI / 6.0;
+		let zfar  = 1024.0;
+		let znear = 0.1;
+
 		let perspective =
 				perspective_matrix(fov, zfar, znear, target.get_dimensions());
 
@@ -617,15 +538,16 @@ fn main()
 		// Clearing the depth again here forces the background to the back
 		target.clear_depth(1.0);
 
-		// TODO: move this to a RenderModel method.  Either pass program,
+		// TODO: move this to a RenderModel method?  Either pass program,
 		// uniforms, and params as args or encapsulate them in RenderModel
-		// struct
+		// struct.  Actually it seems nearly impossible to pass uniforms as
+		// args.  I tried and failed to do so for the background.
 		target.draw((
 			&render_model.vertices,
 			&render_model.normals,
 			&render_model.scalar),
 			&render_model.indices,
-			&program, &uniforms, &params).unwrap();
+			&face_program, &uniforms, &params).unwrap();
 
 		if render_model.edge_visibility
 		{
