@@ -74,6 +74,7 @@ impl Background
 			}
 		"#;
 
+		// c.f. shaders.rs
 		let program = glium::Program::from_source(facade, vertex_shader_src,
 			fragment_shader_src, None).unwrap();
 

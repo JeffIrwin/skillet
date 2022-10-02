@@ -352,24 +352,24 @@ impl RenderModel
 		let mut normals = Vec::with_capacity(tris.len());
 		let scalar  = Vec::new();
 
-		for i in 0 .. tris.len() / ND
+		for i in 0 .. tris.len() / NT
 		{
 			// Local array containing the coordinates of the vertices of
 			// a single triangle
-			let mut p: [f32; ND*ND] = [0.0; ND*ND];
+			let mut p: [f32; NT * ND] = [0.0; NT * ND];
 
 			// Some of these ND's should be NT's, not that it makes a difference
-			for j in 0 .. ND
+			for j in 0 .. NT
 			{
-				p[ND*j + 0] = m.points[ND*tris[ND*i + j] as usize + 0];
-				p[ND*j + 1] = m.points[ND*tris[ND*i + j] as usize + 1];
-				p[ND*j + 2] = m.points[ND*tris[ND*i + j] as usize + 2];
+				p[NT*j + 0] = m.points[ND*tris[NT*i + j] as usize + 0];
+				p[NT*j + 1] = m.points[ND*tris[NT*i + j] as usize + 1];
+				p[NT*j + 2] = m.points[ND*tris[NT*i + j] as usize + 2];
 
 				verts.push(Vert{position:
 					[
-						p[ND*j + 0],
-						p[ND*j + 1],
-						p[ND*j + 2],
+						p[NT*j + 0],
+						p[NT*j + 1],
+						p[NT*j + 2],
 					]});
 			}
 
@@ -402,8 +402,7 @@ impl RenderModel
 		{
 			// This could be half the size.  Unlike normal calculation above, we
 			// only need to push 1 vert at a time without keeping the whole edge
-			// in memory.  Should fix ND/NT conflation above (which is correct
-			// here) before deleting
+			// in memory.
 			let mut p: [f32; NE * ND] = [0.0; NE * ND];
 
 			for j in 0 .. NE
