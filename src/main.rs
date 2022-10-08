@@ -44,7 +44,10 @@ struct State
 	// This is where transformations happen
 	pub world: [[f32; NM]; NM],
 
+	pub view : [[f32; NM]; NM],
+
 	pub cen: [f32; ND],
+	pub eye: [f32; ND],
 }
 
 impl State
@@ -61,10 +64,17 @@ impl State
 			rmb: false,
 
 			world: identity_matrix(),
+			view : identity_matrix(),
+
 			cen: [0.0; ND],
+			eye: [0.0; ND],
 		}
 	}
 }
+
+// View constants
+const DIR: [f32; ND] = [0.0, 0.0, -1.0];
+const UP : [f32; ND] = [0.0, 1.0,  0.0];
 
 //==============================================================================
 
@@ -180,11 +190,8 @@ fn main()
 	// You could do some trig here on fov to guarantee whole model is in view,
 	// but it's pretty close as is except for possible extreme cases
 
-	let mut eye = [0.0, 0.0, zmax + diam];
-	let dir = [0.0, 0.0, -1.0];
-	let up  = [0.0, 1.0,  0.0];
-
-	let mut view = view_matrix(&eye, &dir, &up);
+	s.eye = [0.0, 0.0, zmax + diam];
+	s.view = view_matrix(&s.eye, &DIR, &UP);
 
 	// Mouse position from last frame
 	let mut x0 = 0.0;
@@ -317,8 +324,8 @@ fn main()
 						let dz = y - y0;
 
 						let sensitivity = 0.003;
-						eye[2] += sensitivity * scale_cum * diam * dz;
-						view = view_matrix(&eye, &dir, &up);
+						s.eye[2] += sensitivity * scale_cum * diam * dz;
+						s.view = view_matrix(&s.eye, &DIR, &UP);
 					}
 
 					x0 = x;
@@ -519,7 +526,7 @@ fn main()
 		let uniforms = uniform!
 			{
 				perspective: perspective,
-				view : view ,
+				view : s.view ,
 				world: s.world,
 				model_mat: model_mat,
 				u_light: light,
