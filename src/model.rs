@@ -336,6 +336,7 @@ pub struct RenderModel
 	pub edge_indices: glium::index::NoIndices,
 
 	pub warp_factor: f32,
+	pub comp: usize,
 }
 
 fn verts(m: &Model, enable_warp: bool, index: usize, factor: f32)
@@ -481,6 +482,7 @@ impl RenderModel
 				glium::index::PrimitiveType::LinesList),
 
 			warp_factor: 1.0,
+			comp: 0,
 		};
 
 		// If point data is empty, bind cell data instead.  If both are empty,
@@ -488,11 +490,11 @@ impl RenderModel
 		// references the empty scalar
 		if m.point_data.len() > 0
 		{
-			render_model.bind_point_data(0, 0, &m, facade);
+			render_model.bind_point_data(0, &m, facade);
 		}
 		else if m.cell_data.len() > 0
 		{
-			render_model.bind_cell_data(0, 0, &m, facade);
+			render_model.bind_cell_data(0, &m, facade);
 		}
 		else
 		{
@@ -547,13 +549,13 @@ impl RenderModel
 
 	//****************
 
-	pub fn bind_point_data(&mut self, index: usize, comp: usize, m: &Model,
+	pub fn bind_point_data(&mut self, index: usize, m: &Model,
 		facade: &dyn glium::backend::Facade)
 	{
 		// Select point data array by index to bind for graphical display
 
 		// TODO: check index too
-		if comp >= m.point_data[index].num_comp
+		if self.comp >= m.point_data[index].num_comp
 		{
 			panic!("Component is out of bounds");
 		}
@@ -565,11 +567,11 @@ impl RenderModel
 		// Get min/max of scalar.  TODO: add a magnitude option for vectors (but
 		// not tensors).  An extra pass will be needed to calculate
 		let (smin, smax) = utils::get_bounds(&(m.point_data[index].data
-			.iter().skip(comp).step_by(step).copied().collect::<Vec<f32>>()));
+			.iter().skip(self.comp).step_by(step).copied().collect::<Vec<f32>>()));
 
 		for i in 0 .. tris.len()
 		{
-			let s = m.point_data[index].data[step * tris[i] as usize + comp];
+			let s = m.point_data[index].data[step * tris[i] as usize + self.comp];
 
 			scalar.push(Scalar{tex_coord:
 				((s - smin) / (smax - smin)) as f32 });
@@ -580,13 +582,13 @@ impl RenderModel
 
 	//****************
 
-	pub fn bind_cell_data(&mut self, index: usize, comp: usize, m: &Model,
+	pub fn bind_cell_data(&mut self, index: usize, m: &Model,
 		facade: &dyn glium::backend::Facade)
 	{
 		// Select cell data array by index to bind for graphical display
 
 		// TODO: check index too
-		if comp >= m.cell_data[index].num_comp
+		if self.comp >= m.cell_data[index].num_comp
 		{
 			panic!("Component is out of bounds");
 		}
@@ -598,7 +600,7 @@ impl RenderModel
 		// Get min/max of scalar.  TODO: add a magnitude option for vectors (but
 		// not tensors).  An extra pass will be needed to calculate
 		let (smin, smax) = utils::get_bounds(&(m.cell_data[index].data
-			.iter().skip(comp).step_by(step).copied().collect::<Vec<f32>>()));
+			.iter().skip(self.comp).step_by(step).copied().collect::<Vec<f32>>()));
 
 		// Cell index
 		let mut ic = 0;
@@ -621,7 +623,7 @@ impl RenderModel
 			}
 			//println!("_i, ic, iv = {}, {}, {}", _i, ic, iv);
 
-			let s = m.cell_data[index].data[step * ic as usize + comp];
+			let s = m.cell_data[index].data[step * ic as usize + self.comp];
 
 			scalar.push(Scalar{tex_coord:
 				((s - smin) / (smax - smin)) as f32 });

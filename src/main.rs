@@ -179,7 +179,6 @@ fn main()
 
 	// Data array and component indices for color contour
 	let mut dindex = 0;
-	let mut comp = 0;
 
 	// Data array index for warping by vector.  Initial value means no warping
 	let mut warp_index = model.point_data.len();
@@ -410,50 +409,49 @@ fn main()
 
 							event::VirtualKeyCode::C =>
 							{
-								//render_model.bind_point_data(dindex, comp, &model, &display);
-
 								let name;
 								if dindex < model.point_data.len()
 								{
-									comp = (comp + 1) % model.point_data[dindex].num_comp;
-									render_model.bind_point_data(dindex, comp, &model, &display);
+									render_model.comp = (render_model.comp + 1)
+										% model.point_data[dindex].num_comp;
+									render_model.bind_point_data(dindex, &model, &display);
 									name = &model.point_data[dindex].name;
 								}
 								else
 								{
 									let cindex = dindex - model.point_data.len();
-									comp = (comp + 1) % model.cell_data[cindex].num_comp;
-									render_model.bind_cell_data(cindex, comp, &model, &display);
+									render_model.comp = (render_model.comp + 1)
+										% model.cell_data[cindex].num_comp;
+									render_model.bind_cell_data(cindex, &model, &display);
 									name = &model.cell_data[cindex].name;
 								}
 
 								println!("Cycling data comp");
 								println!("Data name = {}", name);
-								println!("Data comp = {}\n", comp);
+								println!("Data comp = {}\n", render_model.comp);
 							}
 							event::VirtualKeyCode::D =>
 							{
 								let name;
 								dindex = (dindex + 1) % data_len;
-								comp = 0;
+								render_model.comp = 0;
 
 								// Cycle through point data first, then go to
 								// cells if we're past the end of the points.
 								if dindex < model.point_data.len()
 								{
-									render_model.bind_point_data(dindex, comp, &model, &display);
+									render_model.bind_point_data(dindex, &model, &display);
 									name = &model.point_data[dindex].name;
 								}
 								else
 								{
 									let cindex = dindex - model.point_data.len();
-									render_model.bind_cell_data(cindex, comp, &model, &display);
+									render_model.bind_cell_data(cindex, &model, &display);
 									name = &model.cell_data[cindex].name;
 								}
 
 								println!("Cycling data array");
 								println!("Data name = {}", name);
-								println!("Data comp = {}\n", comp);
 							}
 							event::VirtualKeyCode::E =>
 							{
