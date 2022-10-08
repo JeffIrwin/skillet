@@ -48,6 +48,13 @@ struct State
 
 	pub cen: [f32; ND],
 	pub eye: [f32; ND],
+
+	// Mouse position from last frame
+	pub x0: f32,
+	pub y0: f32,
+
+	// Scroll wheel zoom factor
+	pub scale_cum: f32,
 }
 
 impl State
@@ -68,6 +75,11 @@ impl State
 
 			cen: [0.0; ND],
 			eye: [0.0; ND],
+
+			x0: 0.0,
+			y0: 0.0,
+
+			scale_cum: 1.0,
 		}
 	}
 }
@@ -193,13 +205,6 @@ fn main()
 	s.eye = [0.0, 0.0, zmax + diam];
 	s.view = view_matrix(&s.eye, &DIR, &UP);
 
-	// Mouse position from last frame
-	let mut x0 = 0.0;
-	let mut y0 = 0.0;
-
-	// Scroll wheel zoom factor
-	let mut scale_cum = 1.0;
-
 	// This initial value doesn't matter.  It will get set correctly after the
 	// first frame
 	let mut display_diam = 1920.0;
@@ -275,7 +280,7 @@ fn main()
 						// TODO: handle shift-lmb as z rotation
 
 						// Right-hand normal to drag direction
-						let mut u = [-(y - y0), -(x - x0), 0.0];
+						let mut u = [-(y - s.y0), -(x - s.x0), 0.0];
 
 						let norm = norm(&u);
 						u[0] /= norm;
@@ -298,11 +303,11 @@ fn main()
 
 						//println!("mmb drag");
 
-						let sensitivity = 1.5 * diam //* scale_cum
+						let sensitivity = 1.5 * diam //* s.scale_cum
 								/ display_diam;
 
-						let dx =  sensitivity * (x - x0);// / display_h;
-						let dy = -sensitivity * (y - y0);// / display_w;
+						let dx =  sensitivity * (x - s.x0);// / display_h;
+						let dy = -sensitivity * (y - s.y0);// / display_w;
 
 						let tran = [dx, dy, 0.0];
 
@@ -321,15 +326,15 @@ fn main()
 						// wheel action:  scrolling up has a similar effect as
 						// rmb dragging up
 
-						let dz = y - y0;
+						let dz = y - s.y0;
 
 						let sensitivity = 0.003;
-						s.eye[2] += sensitivity * scale_cum * diam * dz;
+						s.eye[2] += sensitivity * s.scale_cum * diam * dz;
 						s.view = view_matrix(&s.eye, &DIR, &UP);
 					}
 
-					x0 = x;
-					y0 = y;
+					s.x0 = x;
+					s.y0 = y;
 				},
 				glutin::event::WindowEvent::MouseWheel {delta, ..} =>
 				{
@@ -361,7 +366,7 @@ fn main()
 
 					let sensitivity = 0.1;
 					let scale = (sensitivity * dz).exp();
-					scale_cum *= scale;
+					s.scale_cum *= scale;
 
 					//println!("scale = {}", scale);
 
