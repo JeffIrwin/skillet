@@ -28,6 +28,27 @@ extern crate glium;
 
 //==============================================================================
 
+struct State
+{
+	// Modifier keys
+	pub ctrl : bool,
+	pub shift: bool,
+}
+
+impl State
+{
+	pub fn new() -> State
+	{
+		State
+		{
+			ctrl : false,
+			shift: false,
+		}
+	}
+}
+
+//==============================================================================
+
 fn main()
 {
 	use glium::{glutin, glutin::event_loop::EventLoop, glutin::event, Surface};
@@ -57,6 +78,7 @@ fn main()
 	let model = import(file_path);
 
 	// TODO: refactor to window init fn
+	let mut s = State::new();
 
 	let event_loop = EventLoop::new();
 
@@ -153,10 +175,6 @@ fn main()
 	let mut mmb = false;
 	let mut rmb = false;
 
-	// Modifier keys
-	let mut ctrl  = false;
-	let mut shift = false;
-
 	// Mouse position from last frame
 	let mut x0 = 0.0;
 	let mut y0 = 0.0;
@@ -201,8 +219,8 @@ fn main()
 				event::WindowEvent::ModifiersChanged(modifiers_state) =>
 				{
 					//println!("modifiers_state = {:?}", modifiers_state);
-					ctrl  = modifiers_state.ctrl ();
-					shift = modifiers_state.shift();
+					s.ctrl  = modifiers_state.ctrl ();
+					s.shift = modifiers_state.shift();
 				},
 				glutin::event::WindowEvent::MouseInput  {state, button, ..} =>
 				{
@@ -335,7 +353,7 @@ fn main()
 				{
 					//println!("input = {:?}", input);
 
-					if ctrl && input.state == PRESSED
+					if s.ctrl && input.state == PRESSED
 					{
 						match input.virtual_keycode.unwrap()
 						{
@@ -348,7 +366,7 @@ fn main()
 							_ => {}
 						}
 					}
-					else if shift && input.state == PRESSED
+					else if s.shift && input.state == PRESSED
 					{
 						match input.virtual_keycode.unwrap()
 						{

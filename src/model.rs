@@ -338,6 +338,8 @@ fn verts(m: &Model, enable_warp: bool, index: usize, factor: f32)
 {
 	let tris = m.tris();
 
+	// You would think that normals could be 1/3 this size, but they need to
+	// be duplicated for each vertex of a triangle for sharp edge shading
 	let mut verts   = Vec::with_capacity(tris.len());
 	let mut normals = Vec::with_capacity(tris.len());
 
@@ -347,7 +349,6 @@ fn verts(m: &Model, enable_warp: bool, index: usize, factor: f32)
 		// a single triangle
 		let mut p: [f32; NT * ND] = [0.0; NT * ND];
 
-		// Some of these ND's should be NT's, not that it makes a difference
 		for j in 0 .. NT
 		{
 			p[NT*j + 0] = m.points[ND*tris[NT*i + j] as usize + 0];
@@ -452,13 +453,9 @@ impl RenderModel
 
 	pub fn new(m: &Model, facade: &dyn glium::backend::Facade) -> RenderModel
 	{
-
 		// Split scalar handling to a separate fn.  Mesh geometry will only be
 		// loaded once, but scalars are processed multiple times as the user
 		// cycles through data to display
-
-		// You would think that normals could be 1/3 this size, but they need to
-		// be duplicated for each vertex of a triangle for sharp edge shading
 
 		let enable_warp = false;
 		let (verts, normals, edge_verts) = verts(&m, enable_warp, 0, 0.0);
