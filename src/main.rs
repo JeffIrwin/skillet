@@ -30,6 +30,8 @@ extern crate glium;
 
 struct State
 {
+	// This is the global app state
+
 	// Modifier keys
 	pub ctrl : bool,
 	pub shift: bool,
@@ -38,6 +40,11 @@ struct State
 	pub lmb: bool,
 	pub mmb: bool,
 	pub rmb: bool,
+
+	// This is where transformations happen
+	pub world: [[f32; NM]; NM],
+
+	pub cen: [f32; ND],
 }
 
 impl State
@@ -52,6 +59,9 @@ impl State
 			lmb: false,
 			mmb: false,
 			rmb: false,
+
+			world: identity_matrix(),
+			cen: [0.0; ND],
 		}
 	}
 }
@@ -135,7 +145,7 @@ fn main()
 	let yc = 0.5 * (ymin + ymax);
 	let zc = 0.5 * (zmin + zmax);
 
-	let mut cen = vec![xc, yc, zc];
+	s.cen = [xc, yc, zc];
 
 	let diam = norm(&sub(&[xmax, ymax, zmax], &[xmin, ymin, zmin]));
 
@@ -165,9 +175,6 @@ fn main()
 	// unless I add an option for a user to move one model relative to others
 	let model_mat = identity_matrix();
 
-	// This is where transformations happen
-	let mut world = identity_matrix();
-
 	// View must be initialized like this, because subsequent rotations are
 	// performed about its fixed coordinate system.  Set eye from model bounds.
 	// You could do some trig here on fov to guarantee whole model is in view,
@@ -191,8 +198,8 @@ fn main()
 	let mut display_diam = 1920.0;
 
 	// Initial pan to center
-	world = translate_matrix(&world, &neg(&cen));
-	cen = vec![0.0; ND];
+	s.world = translate_matrix(&s.world, &neg(&s.cen));
+	s.cen = [0.0; ND];
 
 	const PRESSED: glutin::event::ElementState
 	             = glutin::event::ElementState::Pressed;
@@ -273,9 +280,9 @@ fn main()
 
 						// Push translation to model center, apply rotation,
 						// then pop trans
-						world = translate_matrix(&world, &neg(&cen));
-						world = rotate_matrix   (&world, &u, theta);
-						world = translate_matrix(&world, &cen);
+						s.world = translate_matrix(&s.world, &neg(&s.cen));
+						s.world = rotate_matrix   (&s.world, &u, theta);
+						s.world = translate_matrix(&s.world, &s.cen);
 
 					}
 					else if s.mmb
@@ -292,10 +299,11 @@ fn main()
 
 						let tran = [dx, dy, 0.0];
 
-						world = translate_matrix(&world, &tran);
+						s.world = translate_matrix(&s.world, &tran);
 
-						// Panning moves rotation center too
-						cen = add(&cen, &tran);
+						// Panning moves rotation center too.  add() returns
+						// Vec, so we have to try_into() and unwrap() to array.
+						s.cen = add(&s.cen, &tran).try_into().unwrap();
 					}
 					else if s.rmb
 					{
@@ -350,8 +358,8 @@ fn main()
 
 					//println!("scale = {}", scale);
 
-					world = scale_matrix(&world, scale);
-					cen = scale_vec(&cen, scale);
+					s.world = scale_matrix(&s.world, scale);
+					s.cen   = scale_vec(&s.cen, scale).try_into().unwrap();
 				},
 				glutin::event::WindowEvent::KeyboardInput {input, ..} =>
 				{
@@ -512,7 +520,7 @@ fn main()
 			{
 				perspective: perspective,
 				view : view ,
-				world: world,
+				world: s.world,
 				model_mat: model_mat,
 				u_light: light,
 				tex: tex,
@@ -563,7 +571,8 @@ fn main()
 		// TODO: move this to a RenderModel method?  Either pass program,
 		// uniforms, and params as args or encapsulate them in RenderModel
 		// struct.  Actually it seems nearly impossible to pass uniforms as
-		// args.  I tried and failed to do so for the background.
+		// args.  I tried and failed to do so for the background.  Maybe
+		// encapsulate them in another struct (state?) and pass that instead?
 		target.draw((
 			&render_model.vertices,
 			&render_model.normals,
