@@ -55,6 +55,9 @@ struct State
 
 	// Scroll wheel zoom factor
 	pub scale_cum: f32,
+
+	// Colormap index in JSON res file
+	pub map_index: usize,
 }
 
 impl State
@@ -80,6 +83,8 @@ impl State
 			y0: 0.0,
 
 			scale_cum: 1.0,
+
+			map_index: 0,
 		}
 	}
 }
@@ -145,10 +150,7 @@ fn main()
 
 	let bg = Background::new(&display);
 
-	// Colormap index in JSON res file
-	let mut map_index = 0;
-
-	let mut colormap = get_colormap(&mut map_index, &display);
+	let mut colormap = get_colormap(&mut s.map_index, &display);
 
 	//****************
 
@@ -177,8 +179,6 @@ fn main()
 	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
 	println!();
 
-	// Data array index for warping by vector.  Initial value means no warping
-	let mut warp_index = model.point_data.len();
 	let warp_increment = 0.1;
 
 	let mut render_model = RenderModel::new(&model, &display);
@@ -380,7 +380,7 @@ fn main()
 							{
 								//println!("Ctrl+W");
 								render_model.warp_factor -= warp_increment;
-								render_model.warp(&mut warp_index, &model, &display);
+								render_model.warp(&model, &display);
 							}
 							_ => {}
 						}
@@ -393,7 +393,7 @@ fn main()
 							{
 								//println!("Shift+W");
 								render_model.warp_factor += warp_increment;
-								render_model.warp(&mut warp_index, &model, &display);
+								render_model.warp(&model, &display);
 							}
 							_ => {}
 						}
@@ -467,14 +467,14 @@ fn main()
 								// Modulo wrapping happens inside
 								// get_colormap().  Maybe I should make
 								// bind_*_data() work like that too.
-								map_index += 1;
-								colormap = get_colormap(&mut map_index, &display);
+								s.map_index += 1;
+								colormap = get_colormap(&mut s.map_index, &display);
 							}
 							event::VirtualKeyCode::W =>
 							{
 								println!("Cycling warp");
-								warp_index += 1;
-								render_model.warp(&mut warp_index, &model, &display);
+								render_model.warp_index += 1;
+								render_model.warp(&model, &display);
 
 								// TODO: key bindings to increase/decrease warp.
 								// Ctrl+W and Shift+W.  Increment by how much?

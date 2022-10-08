@@ -336,6 +336,7 @@ pub struct RenderModel
 	pub edge_indices: glium::index::NoIndices,
 
 	pub warp_factor: f32,
+	pub warp_index: usize,
 
 	// Data array and component indices for color contour
 	pub comp  : usize,
@@ -486,6 +487,10 @@ impl RenderModel
 
 			warp_factor: 1.0,
 
+			// Data array index for warping by vector.  Initial value means no
+			// warping
+			warp_index: m.point_data.len(),
+
 			comp  : 0,
 			dindex: 0,
 		};
@@ -512,7 +517,7 @@ impl RenderModel
 
 	//****************
 
-	pub fn warp(&mut self, index: &mut usize, m: &Model,
+	pub fn warp(&mut self, m: &Model,
 		facade: &dyn glium::backend::Facade)
 	{
 		// Warp vertex positions by vector point data.  Cell data cannot be
@@ -522,30 +527,32 @@ impl RenderModel
 		// a different data array.  Instead, we maintain the same scalar texture
 		// as before.
 
-		//*index += 1;
-		if *index >= m.point_data.len() + 1
+		//index += 1;
+		if self.warp_index >= m.point_data.len() + 1
 		{
-			*index = 0;
+			self.warp_index = 0;
 		}
+
+		let index = self.warp_index;
 
 		// We can't just return early here, because we need to reset positions
 		// to their original values to undo the previous warp
-		let enable_warp = *index < m.point_data.len();
+		let enable_warp = index < m.point_data.len();
 
 		if enable_warp
 		{
-			if m.point_data[*index].num_comp != ND
+			if m.point_data[index].num_comp != ND
 			{
 				// Only vectors can warp.  TODO: auto cycle to next vector (don't
 				// infinite loop)
 				return;
 			}
 
-			//println!("Warping by \"{}\"", m.point_data[*index].name);
+			//println!("Warping by \"{}\"", m.point_data[index].name);
 		}
 
 		let (verts, normals, edge_verts) = verts(&m, enable_warp,
-				*index, self.warp_factor);
+				index, self.warp_factor);
 
 		self.vertices   = glium::VertexBuffer::new(facade, &verts     ).unwrap();
 		self.normals    = glium::VertexBuffer::new(facade, &normals   ).unwrap();
