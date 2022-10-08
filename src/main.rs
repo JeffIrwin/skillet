@@ -177,9 +177,6 @@ fn main()
 	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
 	println!();
 
-	// Data array and component indices for color contour
-	let mut dindex = 0;
-
 	// Data array index for warping by vector.  Initial value means no warping
 	let mut warp_index = model.point_data.len();
 	let warp_increment = 0.1;
@@ -410,19 +407,19 @@ fn main()
 							event::VirtualKeyCode::C =>
 							{
 								let name;
-								if dindex < model.point_data.len()
+								if render_model.dindex < model.point_data.len()
 								{
 									render_model.comp = (render_model.comp + 1)
-										% model.point_data[dindex].num_comp;
-									render_model.bind_point_data(dindex, &model, &display);
-									name = &model.point_data[dindex].name;
+										% model.point_data[render_model.dindex].num_comp;
+									render_model.bind_point_data(&model, &display);
+									name = &model.point_data[render_model.dindex].name;
 								}
 								else
 								{
-									let cindex = dindex - model.point_data.len();
+									let cindex = render_model.dindex - model.point_data.len();
 									render_model.comp = (render_model.comp + 1)
 										% model.cell_data[cindex].num_comp;
-									render_model.bind_cell_data(cindex, &model, &display);
+									render_model.bind_cell_data(&model, &display);
 									name = &model.cell_data[cindex].name;
 								}
 
@@ -433,20 +430,24 @@ fn main()
 							event::VirtualKeyCode::D =>
 							{
 								let name;
-								dindex = (dindex + 1) % data_len;
+								render_model.dindex = (render_model.dindex + 1) % data_len;
 								render_model.comp = 0;
 
 								// Cycle through point data first, then go to
 								// cells if we're past the end of the points.
-								if dindex < model.point_data.len()
+								if render_model.dindex < model.point_data.len()
 								{
-									render_model.bind_point_data(dindex, &model, &display);
-									name = &model.point_data[dindex].name;
+									render_model.bind_point_data(&model, &display);
+									name = &model.point_data[render_model.dindex].name;
 								}
 								else
 								{
-									let cindex = dindex - model.point_data.len();
-									render_model.bind_cell_data(cindex, &model, &display);
+									// TODO: add a generic
+									// render_model.get_name() fn to handle this
+									// index logic for both point and cell data
+
+									let cindex = render_model.dindex - model.point_data.len();
+									render_model.bind_cell_data(&model, &display);
 									name = &model.cell_data[cindex].name;
 								}
 

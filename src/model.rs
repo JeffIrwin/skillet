@@ -336,7 +336,10 @@ pub struct RenderModel
 	pub edge_indices: glium::index::NoIndices,
 
 	pub warp_factor: f32,
-	pub comp: usize,
+
+	// Data array and component indices for color contour
+	pub comp  : usize,
+	pub dindex: usize,
 }
 
 fn verts(m: &Model, enable_warp: bool, index: usize, factor: f32)
@@ -482,7 +485,9 @@ impl RenderModel
 				glium::index::PrimitiveType::LinesList),
 
 			warp_factor: 1.0,
-			comp: 0,
+
+			comp  : 0,
+			dindex: 0,
 		};
 
 		// If point data is empty, bind cell data instead.  If both are empty,
@@ -490,11 +495,11 @@ impl RenderModel
 		// references the empty scalar
 		if m.point_data.len() > 0
 		{
-			render_model.bind_point_data(0, &m, facade);
+			render_model.bind_point_data(&m, facade);
 		}
 		else if m.cell_data.len() > 0
 		{
-			render_model.bind_cell_data(0, &m, facade);
+			render_model.bind_cell_data(&m, facade);
 		}
 		else
 		{
@@ -549,10 +554,12 @@ impl RenderModel
 
 	//****************
 
-	pub fn bind_point_data(&mut self, index: usize, m: &Model,
+	pub fn bind_point_data(&mut self, m: &Model,
 		facade: &dyn glium::backend::Facade)
 	{
 		// Select point data array by index to bind for graphical display
+
+		let index = self.dindex;
 
 		// TODO: check index too
 		if self.comp >= m.point_data[index].num_comp
@@ -582,10 +589,12 @@ impl RenderModel
 
 	//****************
 
-	pub fn bind_cell_data(&mut self, index: usize, m: &Model,
+	pub fn bind_cell_data(&mut self, m: &Model,
 		facade: &dyn glium::backend::Facade)
 	{
 		// Select cell data array by index to bind for graphical display
+
+		let index = self.dindex - m.point_data.len();
 
 		// TODO: check index too
 		if self.comp >= m.cell_data[index].num_comp
