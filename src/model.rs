@@ -322,6 +322,9 @@ pub struct RenderModel
 {
 	// The RenderModel struct is an interface layer between the Model and
 	// glium's GL array/buffer object bindings
+	//
+	// TODO: should this struct contain a ref to the Model (and facade?)?  That
+	// could eliminate some fn args
 
 	pub vertices: glium::VertexBuffer<Vert  >,
 	pub normals : glium::VertexBuffer<Normal>,
@@ -331,6 +334,8 @@ pub struct RenderModel
 	pub edge_visibility: bool,
 	pub edge_verts  : glium::VertexBuffer<Vert>,
 	pub edge_indices: glium::index::NoIndices,
+
+	pub warp_factor: f32,
 }
 
 fn verts(m: &Model, enable_warp: bool, index: usize, factor: f32)
@@ -474,6 +479,8 @@ impl RenderModel
 			edge_verts  : glium::VertexBuffer::new(facade, &edge_verts).unwrap(),
 			edge_indices: glium::index::NoIndices(
 				glium::index::PrimitiveType::LinesList),
+
+			warp_factor: 1.0,
 		};
 
 		// If point data is empty, bind cell data instead.  If both are empty,
@@ -498,7 +505,7 @@ impl RenderModel
 
 	//****************
 
-	pub fn warp(&mut self, index: &mut usize, factor: f32, m: &Model,
+	pub fn warp(&mut self, index: &mut usize, m: &Model,
 		facade: &dyn glium::backend::Facade)
 	{
 		// Warp vertex positions by vector point data.  Cell data cannot be
@@ -530,7 +537,8 @@ impl RenderModel
 			//println!("Warping by \"{}\"", m.point_data[*index].name);
 		}
 
-		let (verts, normals, edge_verts) = verts(&m, enable_warp, *index, factor);
+		let (verts, normals, edge_verts) = verts(&m, enable_warp,
+				*index, self.warp_factor);
 
 		self.vertices   = glium::VertexBuffer::new(facade, &verts     ).unwrap();
 		self.normals    = glium::VertexBuffer::new(facade, &normals   ).unwrap();

@@ -183,7 +183,6 @@ fn main()
 
 	// Data array index for warping by vector.  Initial value means no warping
 	let mut warp_index = model.point_data.len();
-	let mut warp_factor = 1.0;
 	let warp_increment = 0.1;
 
 	let mut render_model = RenderModel::new(&model, &display);
@@ -384,8 +383,8 @@ fn main()
 							event::VirtualKeyCode::W =>
 							{
 								//println!("Ctrl+W");
-								warp_factor -= warp_increment;
-								render_model.warp(&mut warp_index, warp_factor, &model, &display);
+								render_model.warp_factor -= warp_increment;
+								render_model.warp(&mut warp_index, &model, &display);
 							}
 							_ => {}
 						}
@@ -397,8 +396,8 @@ fn main()
 							event::VirtualKeyCode::W =>
 							{
 								//println!("Shift+W");
-								warp_factor += warp_increment;
-								render_model.warp(&mut warp_index, warp_factor, &model, &display);
+								render_model.warp_factor += warp_increment;
+								render_model.warp(&mut warp_index, &model, &display);
 							}
 							_ => {}
 						}
@@ -476,7 +475,7 @@ fn main()
 							{
 								println!("Cycling warp");
 								warp_index += 1;
-								render_model.warp(&mut warp_index, warp_factor, &model, &display);
+								render_model.warp(&mut warp_index, &model, &display);
 
 								// TODO: key bindings to increase/decrease warp.
 								// Ctrl+W and Shift+W.  Increment by how much?
