@@ -33,6 +33,11 @@ struct State
 	// Modifier keys
 	pub ctrl : bool,
 	pub shift: bool,
+
+	// Mouse button states
+	pub lmb: bool,
+	pub mmb: bool,
+	pub rmb: bool,
 }
 
 impl State
@@ -43,6 +48,10 @@ impl State
 		{
 			ctrl : false,
 			shift: false,
+
+			lmb: false,
+			mmb: false,
+			rmb: false,
 		}
 	}
 }
@@ -170,11 +179,6 @@ fn main()
 
 	let mut view = view_matrix(&eye, &dir, &up);
 
-	// Mouse button states
-	let mut lmb = false;
-	let mut mmb = false;
-	let mut rmb = false;
-
 	// Mouse position from last frame
 	let mut x0 = 0.0;
 	let mut y0 = 0.0;
@@ -230,15 +234,15 @@ fn main()
 					{
 						glutin::event::MouseButton::Left =>
 						{
-							lmb = state == PRESSED;
+							s.lmb = state == PRESSED;
 						},
 						glutin::event::MouseButton::Right =>
 						{
-							rmb = state == PRESSED;
+							s.rmb = state == PRESSED;
 						},
 						glutin::event::MouseButton::Middle =>
 						{
-							mmb = state == PRESSED;
+							s.mmb = state == PRESSED;
 						},
 						_ => ()
 					}
@@ -250,7 +254,7 @@ fn main()
 					let x = position.x as f32;
 					let y = position.y as f32;
 
-					if lmb
+					if s.lmb
 					{
 						// Rotate about axis within the xy screen plane
 						//
@@ -274,7 +278,7 @@ fn main()
 						world = translate_matrix(&world, &cen);
 
 					}
-					else if mmb
+					else if s.mmb
 					{
 						// xy pan
 
@@ -293,7 +297,7 @@ fn main()
 						// Panning moves rotation center too
 						cen = add(&cen, &tran);
 					}
-					else if rmb
+					else if s.rmb
 					{
 						// z pan (eye motion zoom)
 						//
