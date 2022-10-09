@@ -64,8 +64,6 @@ struct State
 	pub diam: f32,
 	pub display_diam: f32,
 
-	pub close_requested: bool,
-
 	pub bg: Background,
 
 	pub face_program: glium::Program,
@@ -106,8 +104,6 @@ impl State
 			// after the first frame
 			display_diam: 1920.0,
 			diam: 0.0,
-
-			close_requested: false,
 
 			bg: Background::new(display),
 
@@ -248,137 +244,6 @@ fn event_handler<T>(
 	*control_flow =
 			glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
 
-	handle_event(&event, /*control_flow,*/ s, /*&mut render_model, &mut model, &display*/);
-
-	if s.close_requested
-	{
-		*control_flow = glutin::event_loop::ControlFlow::Exit;
-	}
-
-	let mut target = display.draw();
-
-	s.display_diam = tnorm(target.get_dimensions());
-
-	target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
-
-	let fov: f32 = PI / 6.0;
-	let zfar  = 1024.0;
-	let znear = 0.1;
-
-	let perspective =
-			perspective_matrix(fov, zfar, znear, target.get_dimensions());
-
-	// Light direction
-	let light = [0.2, -0.6, -1.0f32];//[-1.4, -0.0, -0.7f32];
-	//let light = [1.4, 0.4, -0.7f32];
-
-	// Linear sampling works better than the default, especially around
-	// texture 0
-	let tex = glium::uniforms::Sampler::new(&s.colormap)
-		.magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
-		.minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
-
-	let bg_tex = glium::uniforms::Sampler::new(&s.bg.colormap)
-		.magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
-		.minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
-
-	let uniforms = uniform!
-		{
-			perspective: perspective,
-			view : s.view ,
-			world: s.world,
-			model_mat: render_model.mat,
-			u_light: light,
-			tex: tex,
-			bg_tex: bg_tex,
-		};
-
-	let params = glium::DrawParameters
-	{
-		depth: glium::Depth
-		{
-			test: glium::draw_parameters::DepthTest::IfLessOrEqual,
-			write: true,
-
-			// High zoom levels are weird, but they're weirder without this.
-			// Maybe increase depth buffer bits too?
-			clamp: glium::draw_parameters::DepthClamp::Clamp,
-
-			.. Default::default()
-		},
-
-		// Hack around z-fighting for edge display.  Units are pixels
-		polygon_offset: glium::draw_parameters::PolygonOffset
-		{
-			factor: 1.01,
-			//units: 3.0,
-			//line: true,
-			fill: true,
-			.. Default::default()
-		},
-
-		// This is the default.  It could be increased, but the
-		// polygon_offset works better than thickening.  Could expose to
-		// user as an option
-		line_width: Some(1.0),
-
-		//backface_culling: glium::draw_parameters::BackfaceCullingMode
-		//		::CullClockwise,
-
-		.. Default::default()
-	};
-
-	target.draw(&s.bg.vertices, &s.bg.indices, &s.bg.program,
-		&uniforms, &params).unwrap();
-
-	// Clearing the depth again here forces the background to the back
-	target.clear_depth(1.0);
-
-	// TODO: move this to a RenderModel method?  Either pass program,
-	// uniforms, and params as args or encapsulate them in RenderModel
-	// struct.  Actually it seems nearly impossible to pass uniforms as
-	// args.  I tried and failed to do so for the background.  Maybe
-	// encapsulate them in another struct (state?) and pass that instead?
-	target.draw((
-		&render_model.vertices,
-		&render_model.normals,
-		&render_model.scalar),
-		&render_model.indices,
-		&s.face_program, &uniforms, &params).unwrap();
-
-	if render_model.edge_visibility
-	{
-		target.draw(
-			&render_model.edge_verts,
-			&render_model.edge_indices,
-			&s.edge_program, &uniforms, &params).unwrap();
-	}
-
-	// TODO: draw axes, colormap legend
-
-	// Swap buffers
-	target.finish().unwrap();
-
-	// TODO: take screenshot and compare for testing (just don't do it
-	// everytime in the main loop.  maybe do that in a separate test/example)
-}
-
-//==============================================================================
-
-//#[inline(always)]
-//async fn handle_event<T>(
-fn handle_event<T>(
-		//event       : &glutin::event::Event<'_, T>,
-		event       : &glutin::event::Event<'_, T>,
-		//control_flow: &mut glium::glutin::event_loop::ControlFlow,
-		s           : &mut State,
-		//render_model: &mut RenderModel,
-		//model       : &mut Model,
-		//display     : &glium::Display
-		////display     : &dyn glium::backend::Facade
-		)
-{
-
 	const PRESSED: glutin::event::ElementState
 	             = glutin::event::ElementState::Pressed;
 
@@ -392,8 +257,7 @@ fn handle_event<T>(
 				println!("{}:  Exiting main()", ME);
 				println!();
 
-				//*control_flow = glutin::event_loop::ControlFlow::Exit;
-				s.close_requested = true;
+				*control_flow = glutin::event_loop::ControlFlow::Exit;
 				return;
 
 			},
@@ -539,29 +403,29 @@ fn handle_event<T>(
 
 				if s.ctrl && input.state == PRESSED
 				{
-					//match input.virtual_keycode.unwrap()
-					//{
-					//	event::VirtualKeyCode::W =>
-					//	{
-					//		//println!("Ctrl+W");
-					//		render_model.warp_factor -= warp_increment;
-					//		render_model.warp(model, display);
-					//	}
-					//	_ => {}
-					//}
+					match input.virtual_keycode.unwrap()
+					{
+						event::VirtualKeyCode::W =>
+						{
+							//println!("Ctrl+W");
+							render_model.warp_factor -= warp_increment;
+							render_model.warp(model, display);
+						}
+						_ => {}
+					}
 				}
 				else if s.shift && input.state == PRESSED
 				{
-					//match input.virtual_keycode.unwrap()
-					//{
-					//	event::VirtualKeyCode::W =>
-					//	{
-					//		//println!("Shift+W");
-					//		render_model.warp_factor += warp_increment;
-					//		render_model.warp(model, display);
-					//	}
-					//	_ => {}
-					//}
+					match input.virtual_keycode.unwrap()
+					{
+						event::VirtualKeyCode::W =>
+						{
+							//println!("Shift+W");
+							render_model.warp_factor += warp_increment;
+							render_model.warp(model, display);
+						}
+						_ => {}
+					}
 				}
 				else if input.state == PRESSED
 				{
@@ -569,86 +433,86 @@ fn handle_event<T>(
 					{
 						// TODO: parameterize keycodes
 
-						//event::VirtualKeyCode::C =>
-						//{
-						//	let name;
-						//	if render_model.dindex < model.point_data.len()
-						//	{
-						//		render_model.comp = (render_model.comp + 1)
-						//			% model.point_data[render_model.dindex].num_comp;
-						//		render_model.bind_point_data(model, display);
-						//		name = &model.point_data[render_model.dindex].name;
-						//	}
-						//	else
-						//	{
-						//		let cindex = render_model.dindex - model.point_data.len();
-						//		render_model.comp = (render_model.comp + 1)
-						//			% model.cell_data[cindex].num_comp;
-						//		render_model.bind_cell_data(model, display);
-						//		name = &model.cell_data[cindex].name;
-						//	}
+						event::VirtualKeyCode::C =>
+						{
+							let name;
+							if render_model.dindex < model.point_data.len()
+							{
+								render_model.comp = (render_model.comp + 1)
+									% model.point_data[render_model.dindex].num_comp;
+								render_model.bind_point_data(model, display);
+								name = &model.point_data[render_model.dindex].name;
+							}
+							else
+							{
+								let cindex = render_model.dindex - model.point_data.len();
+								render_model.comp = (render_model.comp + 1)
+									% model.cell_data[cindex].num_comp;
+								render_model.bind_cell_data(model, display);
+								name = &model.cell_data[cindex].name;
+							}
 
-						//	println!("Cycling data comp");
-						//	println!("Data name = {}", name);
-						//	println!("Data comp = {}\n", render_model.comp);
-						//}
-						//event::VirtualKeyCode::D =>
-						//{
-						//	let name;
-						//	let data_len = model.point_data.len() + model.cell_data.len();
+							println!("Cycling data comp");
+							println!("Data name = {}", name);
+							println!("Data comp = {}\n", render_model.comp);
+						}
+						event::VirtualKeyCode::D =>
+						{
+							let name;
+							let data_len = model.point_data.len() + model.cell_data.len();
 
-						//	render_model.dindex = (render_model.dindex + 1) % data_len;
-						//	render_model.comp = 0;
+							render_model.dindex = (render_model.dindex + 1) % data_len;
+							render_model.comp = 0;
 
-						//	// Cycle through point data first, then go to
-						//	// cells if we're past the end of the points.
-						//	if render_model.dindex < model.point_data.len()
-						//	{
-						//		render_model.bind_point_data(model, display);
-						//		name = &model.point_data[render_model.dindex].name;
-						//	}
-						//	else
-						//	{
-						//		// TODO: add a generic
-						//		// render_model.get_name() fn to handle this
-						//		// index logic for both point and cell data
+							// Cycle through point data first, then go to
+							// cells if we're past the end of the points.
+							if render_model.dindex < model.point_data.len()
+							{
+								render_model.bind_point_data(model, display);
+								name = &model.point_data[render_model.dindex].name;
+							}
+							else
+							{
+								// TODO: add a generic
+								// render_model.get_name() fn to handle this
+								// index logic for both point and cell data
 
-						//		let cindex = render_model.dindex - model.point_data.len();
-						//		render_model.bind_cell_data(model, display);
-						//		name = &model.cell_data[cindex].name;
-						//	}
+								let cindex = render_model.dindex - model.point_data.len();
+								render_model.bind_cell_data(model, display);
+								name = &model.cell_data[cindex].name;
+							}
 
-						//	println!("Cycling data array");
-						//	println!("Data name = {}", name);
-						//}
-						//event::VirtualKeyCode::E =>
-						//{
-						//	render_model.edge_visibility = !render_model.edge_visibility;
-						//	println!("Toggling edge visibility {}",
-						//		render_model.edge_visibility);
-						//}
-						//event::VirtualKeyCode::M =>
-						//{
-						//	println!("Cycling colormap");
+							println!("Cycling data array");
+							println!("Data name = {}", name);
+						}
+						event::VirtualKeyCode::E =>
+						{
+							render_model.edge_visibility = !render_model.edge_visibility;
+							println!("Toggling edge visibility {}",
+								render_model.edge_visibility);
+						}
+						event::VirtualKeyCode::M =>
+						{
+							println!("Cycling colormap");
 
-						//	// Modulo wrapping happens inside
-						//	// get_colormap().  Maybe I should make
-						//	// bind_*_data() work like that too.
-						//	s.map_index += 1;
-						//	s.colormap = get_colormap(&mut s.map_index, display);
-						//}
-						//event::VirtualKeyCode::W =>
-						//{
-						//	println!("Cycling warp");
-						//	render_model.warp_index += 1;
-						//	render_model.warp(model, display);
+							// Modulo wrapping happens inside
+							// get_colormap().  Maybe I should make
+							// bind_*_data() work like that too.
+							s.map_index += 1;
+							s.colormap = get_colormap(&mut s.map_index, display);
+						}
+						event::VirtualKeyCode::W =>
+						{
+							println!("Cycling warp");
+							render_model.warp_index += 1;
+							render_model.warp(model, display);
 
-						//	// TODO: key bindings to increase/decrease warp.
-						//	// Ctrl+W and Shift+W.  Increment by how much?
-						//	// Maybe by a percentage, but negative warps
-						//	// should also be allowed. Document 'w' and
-						//	// other key(s)
-						//}
+							// TODO: key bindings to increase/decrease warp.
+							// Ctrl+W and Shift+W.  Increment by how much?
+							// Maybe by a percentage, but negative warps
+							// should also be allowed. Document 'w' and
+							// other key(s)
+						}
 
 						_ => {}
 					}
@@ -665,6 +529,113 @@ fn handle_event<T>(
 		},
 		_ => return,
 	}
+
+	let mut target = display.draw();
+
+	s.display_diam = tnorm(target.get_dimensions());
+
+	target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
+
+	let fov: f32 = PI / 6.0;
+	let zfar  = 1024.0;
+	let znear = 0.1;
+
+	let perspective =
+			perspective_matrix(fov, zfar, znear, target.get_dimensions());
+
+	// Light direction
+	let light = [0.2, -0.6, -1.0f32];//[-1.4, -0.0, -0.7f32];
+	//let light = [1.4, 0.4, -0.7f32];
+
+	// Linear sampling works better than the default, especially around
+	// texture 0
+	let tex = glium::uniforms::Sampler::new(&s.colormap)
+		.magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
+		.minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
+
+	let bg_tex = glium::uniforms::Sampler::new(&s.bg.colormap)
+		.magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
+		.minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
+
+	let uniforms = uniform!
+		{
+			perspective: perspective,
+			view : s.view ,
+			world: s.world,
+			model_mat: render_model.mat,
+			u_light: light,
+			tex: tex,
+			bg_tex: bg_tex,
+		};
+
+	let params = glium::DrawParameters
+	{
+		depth: glium::Depth
+		{
+			test: glium::draw_parameters::DepthTest::IfLessOrEqual,
+			write: true,
+
+			// High zoom levels are weird, but they're weirder without this.
+			// Maybe increase depth buffer bits too?
+			clamp: glium::draw_parameters::DepthClamp::Clamp,
+
+			.. Default::default()
+		},
+
+		// Hack around z-fighting for edge display.  Units are pixels
+		polygon_offset: glium::draw_parameters::PolygonOffset
+		{
+			factor: 1.01,
+			//units: 3.0,
+			//line: true,
+			fill: true,
+			.. Default::default()
+		},
+
+		// This is the default.  It could be increased, but the
+		// polygon_offset works better than thickening.  Could expose to
+		// user as an option
+		line_width: Some(1.0),
+
+		//backface_culling: glium::draw_parameters::BackfaceCullingMode
+		//		::CullClockwise,
+
+		.. Default::default()
+	};
+
+	target.draw(&s.bg.vertices, &s.bg.indices, &s.bg.program,
+		&uniforms, &params).unwrap();
+
+	// Clearing the depth again here forces the background to the back
+	target.clear_depth(1.0);
+
+	// TODO: move this to a RenderModel method?  Either pass program,
+	// uniforms, and params as args or encapsulate them in RenderModel
+	// struct.  Actually it seems nearly impossible to pass uniforms as
+	// args.  I tried and failed to do so for the background.  Maybe
+	// encapsulate them in another struct (state?) and pass that instead?
+	target.draw((
+		&render_model.vertices,
+		&render_model.normals,
+		&render_model.scalar),
+		&render_model.indices,
+		&s.face_program, &uniforms, &params).unwrap();
+
+	if render_model.edge_visibility
+	{
+		target.draw(
+			&render_model.edge_verts,
+			&render_model.edge_indices,
+			&s.edge_program, &uniforms, &params).unwrap();
+	}
+
+	// TODO: draw axes, colormap legend
+
+	// Swap buffers
+	target.finish().unwrap();
+
+	// TODO: take screenshot and compare for testing (just don't do it
+	// everytime in the main loop.  maybe do that in a separate test/example)
 }
 
 //==============================================================================
