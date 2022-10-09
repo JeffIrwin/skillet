@@ -58,12 +58,19 @@ struct State
 
 	// Colormap index in JSON res file
 	pub map_index: usize,
+
+	pub colormap: glium::texture::SrgbTexture1d,
+
+	pub diam: f32,
+	pub display_diam: f32,
 }
 
 impl State
 {
-	pub fn new() -> State
+	pub fn new(display: &glium::Display) -> State
 	{
+		let mut cmi = 0;
+
 		State
 		{
 			ctrl : false,
@@ -84,7 +91,14 @@ impl State
 
 			scale_cum: 1.0,
 
-			map_index: 0,
+			colormap: get_colormap(&mut cmi, &display),
+			//colormap: glium::texture::SrgbTexture1d::new(),
+			map_index: cmi,
+
+			// This initial value doesn't matter.  It will get set correctly
+			// after the first frame
+			display_diam: 1920.0,
+			diam: 0.0,
 		}
 	}
 }
@@ -95,9 +109,10 @@ const UP : [f32; ND] = [0.0, 1.0,  0.0];
 
 //==============================================================================
 
+use glium::{glutin, glutin::event_loop::EventLoop, glutin::event, Surface};
+
 fn main()
 {
-	use glium::{glutin, glutin::event_loop::EventLoop, glutin::event, Surface};
 	use std::path::PathBuf;
 
 	println!();
@@ -124,7 +139,6 @@ fn main()
 	let model = import(file_path);
 
 	// TODO: refactor to window init fn
-	let mut s = State::new();
 
 	let event_loop = EventLoop::new();
 
@@ -150,7 +164,8 @@ fn main()
 
 	let bg = Background::new(&display);
 
-	let mut colormap = get_colormap(&mut s.map_index, &display);
+	let mut s = State::new(&display);
+	//s.colormap = get_colormap(&mut s.map_index, &display);
 
 	//****************
 
@@ -171,19 +186,14 @@ fn main()
 
 	s.cen = [xc, yc, zc];
 
-	let diam = norm(&sub(&[xmax, ymax, zmax], &[xmin, ymin, zmin]));
+	s.diam = norm(&sub(&[xmax, ymax, zmax], &[xmin, ymin, zmin]));
 
-	//println!("diam = {}", diam);
 	println!("x in [{}, {}]", ff32(xmin), ff32(xmax));
 	println!("y in [{}, {}]", ff32(ymin), ff32(ymax));
 	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
 	println!();
 
-	let warp_increment = 0.1;
-
 	let mut render_model = RenderModel::new(&model, &display);
-
-	let data_len = model.point_data.len() + model.cell_data.len();
 
 	let face_program = shaders::face(&display);
 	let edge_program = shaders::edge(&display);
@@ -197,19 +207,12 @@ fn main()
 	// You could do some trig here on fov to guarantee whole model is in view,
 	// but it's pretty close as is except for possible extreme cases
 
-	s.eye = [0.0, 0.0, zmax + diam];
+	s.eye = [0.0, 0.0, zmax + s.diam];
 	s.view = view_matrix(&s.eye, &DIR, &UP);
-
-	// This initial value doesn't matter.  It will get set correctly after the
-	// first frame
-	let mut display_diam = 1920.0;
 
 	// Initial pan to center
 	s.world = translate_matrix(&s.world, &neg(&s.cen));
 	s.cen = [0.0; ND];
-
-	const PRESSED: glutin::event::ElementState
-	             = glutin::event::ElementState::Pressed;
 
 	println!("{}:  Starting main loop", ME);
 	println!();
@@ -220,288 +223,11 @@ fn main()
 		*control_flow =
 				glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
 
-		match event
-		{
-			glutin::event::Event::WindowEvent { event, ..} => match event
-			{
-				glutin::event::WindowEvent::CloseRequested =>
-				{
-
-					println!("{}:  Exiting main()", ME);
-					println!();
-
-					*control_flow = glutin::event_loop::ControlFlow::Exit;
-					return;
-
-				},
-				event::WindowEvent::ModifiersChanged(modifiers_state) =>
-				{
-					//println!("modifiers_state = {:?}", modifiers_state);
-					s.ctrl  = modifiers_state.ctrl ();
-					s.shift = modifiers_state.shift();
-				},
-				glutin::event::WindowEvent::MouseInput  {state, button, ..} =>
-				{
-					//println!("state, button = {:?}, {:?}", state, button);
-
-					match button
-					{
-						glutin::event::MouseButton::Left =>
-						{
-							s.lmb = state == PRESSED;
-						},
-						glutin::event::MouseButton::Right =>
-						{
-							s.rmb = state == PRESSED;
-						},
-						glutin::event::MouseButton::Middle =>
-						{
-							s.mmb = state == PRESSED;
-						},
-						_ => ()
-					}
-				},
-				glutin::event::WindowEvent::CursorMoved {position, ..} =>
-				{
-					//println!("position = {:?}", position);
-
-					let x = position.x as f32;
-					let y = position.y as f32;
-
-					if s.lmb
-					{
-						// Rotate about axis within the xy screen plane
-						//
-						// TODO: handle shift-lmb as z rotation
-
-						// Right-hand normal to drag direction
-						let mut u = [-(y - s.y0), -(x - s.x0), 0.0];
-
-						let norm = norm(&u);
-						u[0] /= norm;
-						u[1] /= norm;
-						// z is zero, no need to normalize
-
-						let sensitivity = 0.0035;
-						let theta = sensitivity * norm;
-
-						// Push translation to model center, apply rotation,
-						// then pop trans
-						s.world = translate_matrix(&s.world, &neg(&s.cen));
-						s.world = rotate_matrix   (&s.world, &u, theta);
-						s.world = translate_matrix(&s.world, &s.cen);
-
-					}
-					else if s.mmb
-					{
-						// xy pan
-
-						//println!("mmb drag");
-
-						let sensitivity = 1.5 * diam //* s.scale_cum
-								/ display_diam;
-
-						let dx =  sensitivity * (x - s.x0);// / display_h;
-						let dy = -sensitivity * (y - s.y0);// / display_w;
-
-						let tran = [dx, dy, 0.0];
-
-						s.world = translate_matrix(&s.world, &tran);
-
-						// Panning moves rotation center too.  add() returns
-						// Vec, so we have to try_into() and unwrap() to array.
-						s.cen = add(&s.cen, &tran).try_into().unwrap();
-					}
-					else if s.rmb
-					{
-						// z pan (eye motion zoom)
-						//
-						// This uses the opposite sign convention of ParaView,
-						// but I think it feels more consistent with the scroll
-						// wheel action:  scrolling up has a similar effect as
-						// rmb dragging up
-
-						let dz = y - s.y0;
-
-						let sensitivity = 0.003;
-						s.eye[2] += sensitivity * s.scale_cum * diam * dz;
-						s.view = view_matrix(&s.eye, &DIR, &UP);
-					}
-
-					s.x0 = x;
-					s.y0 = y;
-				},
-				glutin::event::WindowEvent::MouseWheel {delta, ..} =>
-				{
-					// Scroll scaling zoom
-					//
-					// ParaView actually has two ways to "zoom": (1) RMB-drag
-					// moves the eye of the view, while (2) the scroll wheel
-					// scales the world
-
-					//println!("delta = {:?}", delta);
-
-					let dz = match delta
-					{
-						glutin::event::MouseScrollDelta::LineDelta(_a, b) =>
-						{
-							//println!("a b = {} {}", a, b);
-							b
-						},
-						//glutin::event::MouseScrollDelta::PixelDelta(p) =>
-						//{
-						//	println!("p = {:?}", p);
-						//	//unimplemented!()
-						//},
-						_ => (0.0)
-					};
-
-					// This sign convention matches ParaView, although the
-					// opposite scroll/zoom convention does exist
-
-					let sensitivity = 0.1;
-					let scale = (sensitivity * dz).exp();
-					s.scale_cum *= scale;
-
-					//println!("scale = {}", scale);
-
-					s.world = scale_matrix(&s.world, scale);
-					s.cen   = scale_vec(&s.cen, scale).try_into().unwrap();
-				},
-				glutin::event::WindowEvent::KeyboardInput {input, ..} =>
-				{
-					//println!("input = {:?}", input);
-
-					if s.ctrl && input.state == PRESSED
-					{
-						match input.virtual_keycode.unwrap()
-						{
-							event::VirtualKeyCode::W =>
-							{
-								//println!("Ctrl+W");
-								render_model.warp_factor -= warp_increment;
-								render_model.warp(&model, &display);
-							}
-							_ => {}
-						}
-					}
-					else if s.shift && input.state == PRESSED
-					{
-						match input.virtual_keycode.unwrap()
-						{
-							event::VirtualKeyCode::W =>
-							{
-								//println!("Shift+W");
-								render_model.warp_factor += warp_increment;
-								render_model.warp(&model, &display);
-							}
-							_ => {}
-						}
-					}
-					else if input.state == PRESSED
-					{
-						match input.virtual_keycode.unwrap()
-						{
-							// TODO: parameterize keycodes.  Document somewhere
-
-							event::VirtualKeyCode::C =>
-							{
-								let name;
-								if render_model.dindex < model.point_data.len()
-								{
-									render_model.comp = (render_model.comp + 1)
-										% model.point_data[render_model.dindex].num_comp;
-									render_model.bind_point_data(&model, &display);
-									name = &model.point_data[render_model.dindex].name;
-								}
-								else
-								{
-									let cindex = render_model.dindex - model.point_data.len();
-									render_model.comp = (render_model.comp + 1)
-										% model.cell_data[cindex].num_comp;
-									render_model.bind_cell_data(&model, &display);
-									name = &model.cell_data[cindex].name;
-								}
-
-								println!("Cycling data comp");
-								println!("Data name = {}", name);
-								println!("Data comp = {}\n", render_model.comp);
-							}
-							event::VirtualKeyCode::D =>
-							{
-								let name;
-								render_model.dindex = (render_model.dindex + 1) % data_len;
-								render_model.comp = 0;
-
-								// Cycle through point data first, then go to
-								// cells if we're past the end of the points.
-								if render_model.dindex < model.point_data.len()
-								{
-									render_model.bind_point_data(&model, &display);
-									name = &model.point_data[render_model.dindex].name;
-								}
-								else
-								{
-									// TODO: add a generic
-									// render_model.get_name() fn to handle this
-									// index logic for both point and cell data
-
-									let cindex = render_model.dindex - model.point_data.len();
-									render_model.bind_cell_data(&model, &display);
-									name = &model.cell_data[cindex].name;
-								}
-
-								println!("Cycling data array");
-								println!("Data name = {}", name);
-							}
-							event::VirtualKeyCode::E =>
-							{
-								render_model.edge_visibility = !render_model.edge_visibility;
-								println!("Toggling edge visibility {}",
-									render_model.edge_visibility);
-							}
-							event::VirtualKeyCode::M =>
-							{
-								println!("Cycling colormap");
-
-								// Modulo wrapping happens inside
-								// get_colormap().  Maybe I should make
-								// bind_*_data() work like that too.
-								s.map_index += 1;
-								colormap = get_colormap(&mut s.map_index, &display);
-							}
-							event::VirtualKeyCode::W =>
-							{
-								println!("Cycling warp");
-								render_model.warp_index += 1;
-								render_model.warp(&model, &display);
-
-								// TODO: key bindings to increase/decrease warp.
-								// Ctrl+W and Shift+W.  Increment by how much?
-								// Maybe by a percentage, but negative warps
-								// should also be allowed. Document 'w' and
-								// other key(s)
-							}
-
-							_ => {}
-						}
-					}
-				},
-				_ => return,
-			},
-
-			glutin::event::Event::NewEvents(cause) => match cause
-			{
-				glutin::event::StartCause::ResumeTimeReached {..} => (),
-				glutin::event::StartCause::Init => (),
-				_ => return,
-			},
-			_ => return,
-		}
+		handle_event(&event, control_flow, &mut s, &mut render_model, &model, &display);
 
 		let mut target = display.draw();
 
-		display_diam = tnorm(target.get_dimensions());
+		s.display_diam = tnorm(target.get_dimensions());
 
 		target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
 
@@ -518,7 +244,7 @@ fn main()
 
 		// Linear sampling works better than the default, especially around
 		// texture 0
-		let tex = glium::uniforms::Sampler::new(&colormap)
+		let tex = glium::uniforms::Sampler::new(&s.colormap)
 			.magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
 			.minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
 
@@ -606,6 +332,307 @@ fn main()
 		// TODO: take screenshot and compare for testing (just don't do it
 		// everytime in the main loop.  maybe do that in a separate test/example)
 	});
+}
+
+//==============================================================================
+
+fn handle_event<T>(
+		//event: &Event<'_, ()>,
+		event: &glutin::event::Event<T>,
+		control_flow: &mut glium::glutin::event_loop::ControlFlow,
+		s: &mut State,
+		render_model: &mut RenderModel,
+		model: &Model,
+		//display: &dyn glium::backend::Facade
+		display: &glium::Display
+		)
+{
+
+	const PRESSED: glutin::event::ElementState
+	             = glutin::event::ElementState::Pressed;
+
+	match event
+	{
+		glutin::event::Event::WindowEvent { event, ..} => match event
+		{
+			glutin::event::WindowEvent::CloseRequested =>
+			{
+
+				println!("{}:  Exiting main()", ME);
+				println!();
+
+				*control_flow = glutin::event_loop::ControlFlow::Exit;
+				return;
+
+			},
+			event::WindowEvent::ModifiersChanged(modifiers_state) =>
+			{
+				//println!("modifiers_state = {:?}", modifiers_state);
+				s.ctrl  = modifiers_state.ctrl ();
+				s.shift = modifiers_state.shift();
+			},
+			glutin::event::WindowEvent::MouseInput  {state, button, ..} =>
+			{
+				//println!("state, button = {:?}, {:?}", state, button);
+
+				match button
+				{
+					glutin::event::MouseButton::Left =>
+					{
+						s.lmb = *state == PRESSED;
+					},
+					glutin::event::MouseButton::Right =>
+					{
+						s.rmb = *state == PRESSED;
+					},
+					glutin::event::MouseButton::Middle =>
+					{
+						s.mmb = *state == PRESSED;
+					},
+					_ => ()
+				}
+			},
+			glutin::event::WindowEvent::CursorMoved {position, ..} =>
+			{
+				//println!("position = {:?}", position);
+
+				let x = position.x as f32;
+				let y = position.y as f32;
+
+				if s.lmb
+				{
+					// Rotate about axis within the xy screen plane
+					//
+					// TODO: handle shift-lmb as z rotation
+
+					// Right-hand normal to drag direction
+					let mut u = [-(y - s.y0), -(x - s.x0), 0.0];
+
+					let norm = norm(&u);
+					u[0] /= norm;
+					u[1] /= norm;
+					// z is zero, no need to normalize
+
+					let sensitivity = 0.0035;
+					let theta = sensitivity * norm;
+
+					// Push translation to model center, apply rotation,
+					// then pop trans
+					s.world = translate_matrix(&s.world, &neg(&s.cen));
+					s.world = rotate_matrix   (&s.world, &u, theta);
+					s.world = translate_matrix(&s.world, &s.cen);
+
+				}
+				else if s.mmb
+				{
+					// xy pan
+
+					//println!("mmb drag");
+
+					let sensitivity = 1.5 * s.diam //* s.scale_cum
+							/ s.display_diam;
+
+					let dx =  sensitivity * (x - s.x0);// / display_h;
+					let dy = -sensitivity * (y - s.y0);// / display_w;
+
+					let tran = [dx, dy, 0.0];
+
+					s.world = translate_matrix(&s.world, &tran);
+
+					// Panning moves rotation center too.  add() returns
+					// Vec, so we have to try_into() and unwrap() to array.
+					s.cen = add(&s.cen, &tran).try_into().unwrap();
+				}
+				else if s.rmb
+				{
+					// z pan (eye motion zoom)
+					//
+					// This uses the opposite sign convention of ParaView,
+					// but I think it feels more consistent with the scroll
+					// wheel action:  scrolling up has a similar effect as
+					// rmb dragging up
+
+					let dz = y - s.y0;
+
+					let sensitivity = 0.003;
+					s.eye[2] += sensitivity * s.scale_cum * s.diam * dz;
+					s.view = view_matrix(&s.eye, &DIR, &UP);
+				}
+
+				s.x0 = x;
+				s.y0 = y;
+			},
+			glutin::event::WindowEvent::MouseWheel {delta, ..} =>
+			{
+				// Scroll scaling zoom
+				//
+				// ParaView actually has two ways to "zoom": (1) RMB-drag
+				// moves the eye of the view, while (2) the scroll wheel
+				// scales the world
+
+				//println!("delta = {:?}", delta);
+
+				let dz = match delta
+				{
+					glutin::event::MouseScrollDelta::LineDelta(_a, b) =>
+					{
+						//println!("a b = {} {}", a, b);
+						*b
+					},
+					//glutin::event::MouseScrollDelta::PixelDelta(p) =>
+					//{
+					//	println!("p = {:?}", p);
+					//	//unimplemented!()
+					//},
+					_ => (0.0)
+				};
+
+				// This sign convention matches ParaView, although the
+				// opposite scroll/zoom convention does exist
+
+				let sensitivity = 0.1;
+				let scale = (sensitivity * dz).exp();
+				s.scale_cum *= scale;
+
+				//println!("scale = {}", scale);
+
+				s.world = scale_matrix(&s.world, scale);
+				s.cen   = scale_vec(&s.cen, scale).try_into().unwrap();
+			},
+			glutin::event::WindowEvent::KeyboardInput {input, ..} =>
+			{
+				//println!("input = {:?}", input);
+
+				let warp_increment = 0.1;
+
+				if s.ctrl && input.state == PRESSED
+				{
+					match input.virtual_keycode.unwrap()
+					{
+						event::VirtualKeyCode::W =>
+						{
+							//println!("Ctrl+W");
+							render_model.warp_factor -= warp_increment;
+							render_model.warp(&model, display);
+						}
+						_ => {}
+					}
+				}
+				else if s.shift && input.state == PRESSED
+				{
+					match input.virtual_keycode.unwrap()
+					{
+						event::VirtualKeyCode::W =>
+						{
+							//println!("Shift+W");
+							render_model.warp_factor += warp_increment;
+							render_model.warp(&model, display);
+						}
+						_ => {}
+					}
+				}
+				else if input.state == PRESSED
+				{
+					match input.virtual_keycode.unwrap()
+					{
+						// TODO: parameterize keycodes.  Document somewhere
+
+						event::VirtualKeyCode::C =>
+						{
+							let name;
+							if render_model.dindex < model.point_data.len()
+							{
+								render_model.comp = (render_model.comp + 1)
+									% model.point_data[render_model.dindex].num_comp;
+								render_model.bind_point_data(&model, display);
+								name = &model.point_data[render_model.dindex].name;
+							}
+							else
+							{
+								let cindex = render_model.dindex - model.point_data.len();
+								render_model.comp = (render_model.comp + 1)
+									% model.cell_data[cindex].num_comp;
+								render_model.bind_cell_data(&model, display);
+								name = &model.cell_data[cindex].name;
+							}
+
+							println!("Cycling data comp");
+							println!("Data name = {}", name);
+							println!("Data comp = {}\n", render_model.comp);
+						}
+						event::VirtualKeyCode::D =>
+						{
+							let name;
+							let data_len = model.point_data.len() + model.cell_data.len();
+
+							render_model.dindex = (render_model.dindex + 1) % data_len;
+							render_model.comp = 0;
+
+							// Cycle through point data first, then go to
+							// cells if we're past the end of the points.
+							if render_model.dindex < model.point_data.len()
+							{
+								render_model.bind_point_data(&model, display);
+								name = &model.point_data[render_model.dindex].name;
+							}
+							else
+							{
+								// TODO: add a generic
+								// render_model.get_name() fn to handle this
+								// index logic for both point and cell data
+
+								let cindex = render_model.dindex - model.point_data.len();
+								render_model.bind_cell_data(&model, display);
+								name = &model.cell_data[cindex].name;
+							}
+
+							println!("Cycling data array");
+							println!("Data name = {}", name);
+						}
+						event::VirtualKeyCode::E =>
+						{
+							render_model.edge_visibility = !render_model.edge_visibility;
+							println!("Toggling edge visibility {}",
+								render_model.edge_visibility);
+						}
+						event::VirtualKeyCode::M =>
+						{
+							println!("Cycling colormap");
+
+							// Modulo wrapping happens inside
+							// get_colormap().  Maybe I should make
+							// bind_*_data() work like that too.
+							s.map_index += 1;
+							s.colormap = get_colormap(&mut s.map_index, display);
+						}
+						event::VirtualKeyCode::W =>
+						{
+							println!("Cycling warp");
+							render_model.warp_index += 1;
+							render_model.warp(&model, display);
+
+							// TODO: key bindings to increase/decrease warp.
+							// Ctrl+W and Shift+W.  Increment by how much?
+							// Maybe by a percentage, but negative warps
+							// should also be allowed. Document 'w' and
+							// other key(s)
+						}
+
+						_ => {}
+					}
+				}
+			},
+			_ => return,
+		},
+
+		glutin::event::Event::NewEvents(cause) => match cause
+		{
+			glutin::event::StartCause::ResumeTimeReached {..} => (),
+			glutin::event::StartCause::Init => (),
+			_ => return,
+		},
+		_ => return,
+	}
 }
 
 //==============================================================================
