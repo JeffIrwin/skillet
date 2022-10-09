@@ -63,6 +63,11 @@ struct State
 
 	pub diam: f32,
 	pub display_diam: f32,
+
+	pub bg: Background,
+
+	pub face_program: glium::Program,
+	pub edge_program: glium::Program,
 }
 
 impl State
@@ -99,6 +104,11 @@ impl State
 			// after the first frame
 			display_diam: 1920.0,
 			diam: 0.0,
+
+			bg: Background::new(display),
+
+			face_program: shaders::face(display),
+			edge_program: shaders::edge(display),
 		}
 	}
 }
@@ -136,7 +146,7 @@ fn main()
 
 	let file_path = PathBuf::from(args[1].clone());
 
-	let model = import(file_path);
+	let mut model = import(file_path);
 
 	// TODO: refactor to window init fn
 
@@ -161,8 +171,6 @@ fn main()
 
 	let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
 	let display = glium::Display::new(wb, cb, &event_loop).unwrap();
-
-	let bg = Background::new(&display);
 
 	let mut s = State::new(&display);
 	//s.colormap = get_colormap(&mut s.map_index, &display);
@@ -195,13 +203,6 @@ fn main()
 
 	let mut render_model = RenderModel::new(&model, &display);
 
-	let face_program = shaders::face(&display);
-	let edge_program = shaders::edge(&display);
-
-	// Don't scale or translate here.  Model matrix should always be identity
-	// unless I add an option for a user to move one model relative to others
-	let model_mat = identity_matrix();
-
 	// View must be initialized like this, because subsequent rotations are
 	// performed about its fixed coordinate system.  Set eye from model bounds.
 	// You could do some trig here on fov to guarantee whole model is in view,
@@ -216,137 +217,32 @@ fn main()
 
 	println!("{}:  Starting main loop", ME);
 	println!();
+
+	//event_loop.run(event_handler(event, _, control_flow));
+
 	event_loop.run(move |event, _, control_flow|
 	{
-		let next_frame_time = std::time::Instant::now() +
-				std::time::Duration::from_nanos(16_666_667);
-		*control_flow =
-				glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
-
-		handle_event(&event, control_flow, &mut s, &mut render_model, &model, &display);
-
-		let mut target = display.draw();
-
-		s.display_diam = tnorm(target.get_dimensions());
-
-		target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
-
-		let fov: f32 = PI / 6.0;
-		let zfar  = 1024.0;
-		let znear = 0.1;
-
-		let perspective =
-				perspective_matrix(fov, zfar, znear, target.get_dimensions());
-
-		// Light direction
-		let light = [0.2, -0.6, -1.0f32];//[-1.4, -0.0, -0.7f32];
-		//let light = [1.4, 0.4, -0.7f32];
-
-		// Linear sampling works better than the default, especially around
-		// texture 0
-		let tex = glium::uniforms::Sampler::new(&s.colormap)
-			.magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
-			.minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
-
-		let bg_tex = glium::uniforms::Sampler::new(&bg.colormap)
-			.magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
-			.minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
-
-		let uniforms = uniform!
-			{
-				perspective: perspective,
-				view : s.view ,
-				world: s.world,
-				model_mat: model_mat,
-				u_light: light,
-				tex: tex,
-				bg_tex: bg_tex,
-			};
-
-		let params = glium::DrawParameters
-		{
-			depth: glium::Depth
-			{
-				test: glium::draw_parameters::DepthTest::IfLessOrEqual,
-				write: true,
-
-				// High zoom levels are weird, but they're weirder without this.
-				// Maybe increase depth buffer bits too?
-				clamp: glium::draw_parameters::DepthClamp::Clamp,
-
-				.. Default::default()
-			},
-
-			// Hack around z-fighting for edge display.  Units are pixels
-			polygon_offset: glium::draw_parameters::PolygonOffset
-			{
-				factor: 1.01,
-				//units: 3.0,
-				//line: true,
-				fill: true,
-				.. Default::default()
-			},
-
-			// This is the default.  It could be increased, but the
-			// polygon_offset works better than thickening.  Could expose to
-			// user as an option
-			line_width: Some(1.0),
-
-			//backface_culling: glium::draw_parameters::BackfaceCullingMode
-			//		::CullClockwise,
-
-			.. Default::default()
-		};
-
-		target.draw(&bg.vertices, &bg.indices, &bg.program,
-			&uniforms, &params).unwrap();
-
-		// Clearing the depth again here forces the background to the back
-		target.clear_depth(1.0);
-
-		// TODO: move this to a RenderModel method?  Either pass program,
-		// uniforms, and params as args or encapsulate them in RenderModel
-		// struct.  Actually it seems nearly impossible to pass uniforms as
-		// args.  I tried and failed to do so for the background.  Maybe
-		// encapsulate them in another struct (state?) and pass that instead?
-		target.draw((
-			&render_model.vertices,
-			&render_model.normals,
-			&render_model.scalar),
-			&render_model.indices,
-			&face_program, &uniforms, &params).unwrap();
-
-		if render_model.edge_visibility
-		{
-			target.draw(
-				&render_model.edge_verts,
-				&render_model.edge_indices,
-				&edge_program, &uniforms, &params).unwrap();
-		}
-
-		// TODO: draw axes, colormap legend
-
-		// Swap buffers
-		target.finish().unwrap();
-
-		// TODO: take screenshot and compare for testing (just don't do it
-		// everytime in the main loop.  maybe do that in a separate test/example)
+		event_handler(&event, control_flow, &mut s, &mut render_model, &mut model, &display);
 	});
 }
 
 //==============================================================================
 
-fn handle_event<T>(
-		//event: &Event<'_, ()>,
-		event: &glutin::event::Event<T>,
-		control_flow: &mut glium::glutin::event_loop::ControlFlow,
-		s: &mut State,
+fn event_handler<T>(
+		event       : &glutin::event::Event<'_, T>,
+		//target      : &glutin::event_loop::EventLoopWindowTarget<T>,
+		control_flow: &mut glutin::event_loop::ControlFlow,
+		s           : &mut State,
 		render_model: &mut RenderModel,
-		model: &Model,
-		//display: &dyn glium::backend::Facade
-		display: &glium::Display
-		)
+		model       : &mut Model,
+		display     : &glium::Display
+		//display     : &dyn glium::backend::Facade
+	)
 {
+	let next_frame_time = std::time::Instant::now() +
+			std::time::Duration::from_nanos(16_666_667);
+	*control_flow =
+			glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
 
 	const PRESSED: glutin::event::ElementState
 	             = glutin::event::ElementState::Pressed;
@@ -513,7 +409,7 @@ fn handle_event<T>(
 						{
 							//println!("Ctrl+W");
 							render_model.warp_factor -= warp_increment;
-							render_model.warp(&model, display);
+							render_model.warp(model, display);
 						}
 						_ => {}
 					}
@@ -526,7 +422,7 @@ fn handle_event<T>(
 						{
 							//println!("Shift+W");
 							render_model.warp_factor += warp_increment;
-							render_model.warp(&model, display);
+							render_model.warp(model, display);
 						}
 						_ => {}
 					}
@@ -535,7 +431,7 @@ fn handle_event<T>(
 				{
 					match input.virtual_keycode.unwrap()
 					{
-						// TODO: parameterize keycodes.  Document somewhere
+						// TODO: parameterize keycodes
 
 						event::VirtualKeyCode::C =>
 						{
@@ -544,7 +440,7 @@ fn handle_event<T>(
 							{
 								render_model.comp = (render_model.comp + 1)
 									% model.point_data[render_model.dindex].num_comp;
-								render_model.bind_point_data(&model, display);
+								render_model.bind_point_data(model, display);
 								name = &model.point_data[render_model.dindex].name;
 							}
 							else
@@ -552,7 +448,7 @@ fn handle_event<T>(
 								let cindex = render_model.dindex - model.point_data.len();
 								render_model.comp = (render_model.comp + 1)
 									% model.cell_data[cindex].num_comp;
-								render_model.bind_cell_data(&model, display);
+								render_model.bind_cell_data(model, display);
 								name = &model.cell_data[cindex].name;
 							}
 
@@ -572,7 +468,7 @@ fn handle_event<T>(
 							// cells if we're past the end of the points.
 							if render_model.dindex < model.point_data.len()
 							{
-								render_model.bind_point_data(&model, display);
+								render_model.bind_point_data(model, display);
 								name = &model.point_data[render_model.dindex].name;
 							}
 							else
@@ -582,7 +478,7 @@ fn handle_event<T>(
 								// index logic for both point and cell data
 
 								let cindex = render_model.dindex - model.point_data.len();
-								render_model.bind_cell_data(&model, display);
+								render_model.bind_cell_data(model, display);
 								name = &model.cell_data[cindex].name;
 							}
 
@@ -609,7 +505,7 @@ fn handle_event<T>(
 						{
 							println!("Cycling warp");
 							render_model.warp_index += 1;
-							render_model.warp(&model, display);
+							render_model.warp(model, display);
 
 							// TODO: key bindings to increase/decrease warp.
 							// Ctrl+W and Shift+W.  Increment by how much?
@@ -633,6 +529,113 @@ fn handle_event<T>(
 		},
 		_ => return,
 	}
+
+	let mut target = display.draw();
+
+	s.display_diam = tnorm(target.get_dimensions());
+
+	target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
+
+	let fov: f32 = PI / 6.0;
+	let zfar  = 1024.0;
+	let znear = 0.1;
+
+	let perspective =
+			perspective_matrix(fov, zfar, znear, target.get_dimensions());
+
+	// Light direction
+	let light = [0.2, -0.6, -1.0f32];//[-1.4, -0.0, -0.7f32];
+	//let light = [1.4, 0.4, -0.7f32];
+
+	// Linear sampling works better than the default, especially around
+	// texture 0
+	let tex = glium::uniforms::Sampler::new(&s.colormap)
+		.magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
+		.minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
+
+	let bg_tex = glium::uniforms::Sampler::new(&s.bg.colormap)
+		.magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
+		.minify_filter(glium::uniforms::MinifySamplerFilter::Linear);
+
+	let uniforms = uniform!
+		{
+			perspective: perspective,
+			view : s.view ,
+			world: s.world,
+			model_mat: render_model.mat,
+			u_light: light,
+			tex: tex,
+			bg_tex: bg_tex,
+		};
+
+	let params = glium::DrawParameters
+	{
+		depth: glium::Depth
+		{
+			test: glium::draw_parameters::DepthTest::IfLessOrEqual,
+			write: true,
+
+			// High zoom levels are weird, but they're weirder without this.
+			// Maybe increase depth buffer bits too?
+			clamp: glium::draw_parameters::DepthClamp::Clamp,
+
+			.. Default::default()
+		},
+
+		// Hack around z-fighting for edge display.  Units are pixels
+		polygon_offset: glium::draw_parameters::PolygonOffset
+		{
+			factor: 1.01,
+			//units: 3.0,
+			//line: true,
+			fill: true,
+			.. Default::default()
+		},
+
+		// This is the default.  It could be increased, but the
+		// polygon_offset works better than thickening.  Could expose to
+		// user as an option
+		line_width: Some(1.0),
+
+		//backface_culling: glium::draw_parameters::BackfaceCullingMode
+		//		::CullClockwise,
+
+		.. Default::default()
+	};
+
+	target.draw(&s.bg.vertices, &s.bg.indices, &s.bg.program,
+		&uniforms, &params).unwrap();
+
+	// Clearing the depth again here forces the background to the back
+	target.clear_depth(1.0);
+
+	// TODO: move this to a RenderModel method?  Either pass program,
+	// uniforms, and params as args or encapsulate them in RenderModel
+	// struct.  Actually it seems nearly impossible to pass uniforms as
+	// args.  I tried and failed to do so for the background.  Maybe
+	// encapsulate them in another struct (state?) and pass that instead?
+	target.draw((
+		&render_model.vertices,
+		&render_model.normals,
+		&render_model.scalar),
+		&render_model.indices,
+		&s.face_program, &uniforms, &params).unwrap();
+
+	if render_model.edge_visibility
+	{
+		target.draw(
+			&render_model.edge_verts,
+			&render_model.edge_indices,
+			&s.edge_program, &uniforms, &params).unwrap();
+	}
+
+	// TODO: draw axes, colormap legend
+
+	// Swap buffers
+	target.finish().unwrap();
+
+	// TODO: take screenshot and compare for testing (just don't do it
+	// everytime in the main loop.  maybe do that in a separate test/example)
 }
 
 //==============================================================================
