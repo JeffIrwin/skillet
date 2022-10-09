@@ -341,6 +341,9 @@ pub struct RenderModel
 	// Data array and component indices for color contour
 	pub comp  : usize,
 	pub dindex: usize,
+
+	// Model matrix
+	pub mat: [[f32; NM]; NM],
 }
 
 fn verts(m: &Model, enable_warp: bool, index: usize, factor: f32)
@@ -493,6 +496,11 @@ impl RenderModel
 
 			comp  : 0,
 			dindex: 0,
+
+			// Don't scale or translate here.  Model matrix should always be
+			// identity unless I add an option for a user to move one model
+			// relative to others
+			mat: identity_matrix(),
 		};
 
 		// If point data is empty, bind cell data instead.  If both are empty,
