@@ -146,7 +146,7 @@ fn main()
 
 	let file_path = PathBuf::from(args[1].clone());
 
-	let mut model = import(file_path);
+	let model = import(file_path);
 
 	// TODO: refactor to window init fn
 
@@ -219,7 +219,7 @@ fn main()
 
 	event_loop.run(move |event, _, control_flow|
 	{
-		main_loop(&event, control_flow, &mut s, &mut render_model, &mut model, &display);
+		main_loop(&event, control_flow, &mut s, &mut render_model, &model, &display);
 	});
 }
 
@@ -231,7 +231,7 @@ fn main_loop<T>
 		control_flow: &mut glutin::event_loop::ControlFlow,
 		s           : &mut State,
 		render_model: &mut RenderModel,
-		model       : &mut Model,
+		model       : &Model,
 		display     : &glium::Display,
 	)
 {
