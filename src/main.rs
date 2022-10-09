@@ -173,11 +173,10 @@ fn main()
 	let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
 	let mut s = State::new(&display);
-	//s.colormap = get_colormap(&mut s.map_index, &display);
 
 	//****************
 
-	// Get point xyz bounds
+	// Get point xyz bounds.  TODO: this could be moved into State construction
 
 	let (xmin, xmax) = get_bounds(&(model.points.iter().skip(0)
 			.step_by(ND).copied().collect::<Vec<f32>>()));
@@ -218,25 +217,22 @@ fn main()
 	println!("{}:  Starting main loop", ME);
 	println!();
 
-	//event_loop.run(event_handler(event, _, control_flow));
-
 	event_loop.run(move |event, _, control_flow|
 	{
-		event_handler(&event, control_flow, &mut s, &mut render_model, &mut model, &display);
+		main_loop(&event, control_flow, &mut s, &mut render_model, &mut model, &display);
 	});
 }
 
 //==============================================================================
 
-fn event_handler<T>(
+fn main_loop<T>
+	(
 		event       : &glutin::event::Event<'_, T>,
-		//target      : &glutin::event_loop::EventLoopWindowTarget<T>,
 		control_flow: &mut glutin::event_loop::ControlFlow,
 		s           : &mut State,
 		render_model: &mut RenderModel,
 		model       : &mut Model,
-		display     : &glium::Display
-		//display     : &dyn glium::backend::Facade
+		display     : &glium::Display,
 	)
 {
 	let next_frame_time = std::time::Instant::now() +
@@ -506,12 +502,6 @@ fn event_handler<T>(
 							println!("Cycling warp");
 							render_model.warp_index += 1;
 							render_model.warp(model, display);
-
-							// TODO: key bindings to increase/decrease warp.
-							// Ctrl+W and Shift+W.  Increment by how much?
-							// Maybe by a percentage, but negative warps
-							// should also be allowed. Document 'w' and
-							// other key(s)
 						}
 
 						_ => {}
@@ -529,6 +519,9 @@ fn event_handler<T>(
 		},
 		_ => return,
 	}
+
+	// Apparently the rendering below must be in the same fn as the event
+	// handling above, otherwise perf takes a massive hit
 
 	let mut target = display.draw();
 
