@@ -26,6 +26,8 @@ use crate::background::Background;
 #[macro_use]
 extern crate glium;
 
+use glium::{glutin, glutin::event_loop::EventLoop, glutin::event, Surface};
+
 //==============================================================================
 
 struct State
@@ -119,8 +121,6 @@ const UP : [f32; ND] = [0.0, 1.0,  0.0];
 
 //==============================================================================
 
-use glium::{glutin, glutin::event_loop::EventLoop, glutin::event, Surface};
-
 fn main()
 {
 	use std::path::PathBuf;
@@ -146,7 +146,7 @@ fn main()
 
 	let file_path = PathBuf::from(args[1].clone());
 
-	let model = import(file_path);
+	let model = Box::new(import(file_path));
 
 	// TODO: refactor to window init fn
 
@@ -200,7 +200,7 @@ fn main()
 	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
 	println!();
 
-	let mut render_model = RenderModel::new(&model, &display);
+	let mut render_model = RenderModel::new(model, &display);
 
 	// View must be initialized like this, because subsequent rotations are
 	// performed about its fixed coordinate system.  Set eye from model bounds.
@@ -219,7 +219,7 @@ fn main()
 
 	event_loop.run(move |event, _, control_flow|
 	{
-		main_loop(&event, control_flow, &mut s, &mut render_model, &model, &display);
+		main_loop(&event, control_flow, &mut s, &mut render_model, &display);
 	});
 }
 
@@ -231,7 +231,6 @@ fn main_loop<T>
 		control_flow: &mut glutin::event_loop::ControlFlow,
 		s           : &mut State,
 		render_model: &mut RenderModel,
-		model       : &Model,
 		display     : &glium::Display,
 	)
 {
@@ -405,7 +404,7 @@ fn main_loop<T>
 						{
 							//println!("Ctrl+W");
 							render_model.warp_factor -= warp_increment;
-							render_model.warp(model, display);
+							render_model.warp(display);
 						}
 						_ => {}
 					}
@@ -418,7 +417,7 @@ fn main_loop<T>
 						{
 							//println!("Shift+W");
 							render_model.warp_factor += warp_increment;
-							render_model.warp(model, display);
+							render_model.warp(display);
 						}
 						_ => {}
 					}
@@ -432,20 +431,20 @@ fn main_loop<T>
 						event::VirtualKeyCode::C =>
 						{
 							let name;
-							if render_model.dindex < model.point_data.len()
+							if render_model.dindex < render_model.m.point_data.len()
 							{
 								render_model.comp = (render_model.comp + 1)
-									% model.point_data[render_model.dindex].num_comp;
-								render_model.bind_point_data(model, display);
-								name = &model.point_data[render_model.dindex].name;
+									% render_model.m.point_data[render_model.dindex].num_comp;
+								render_model.bind_point_data(display);
+								name = &render_model.m.point_data[render_model.dindex].name;
 							}
 							else
 							{
-								let cindex = render_model.dindex - model.point_data.len();
+								let cindex = render_model.dindex - render_model.m.point_data.len();
 								render_model.comp = (render_model.comp + 1)
-									% model.cell_data[cindex].num_comp;
-								render_model.bind_cell_data(model, display);
-								name = &model.cell_data[cindex].name;
+									% render_model.m.cell_data[cindex].num_comp;
+								render_model.bind_cell_data(display);
+								name = &render_model.m.cell_data[cindex].name;
 							}
 
 							println!("Cycling data comp");
@@ -455,17 +454,18 @@ fn main_loop<T>
 						event::VirtualKeyCode::D =>
 						{
 							let name;
-							let data_len = model.point_data.len() + model.cell_data.len();
+							let data_len = render_model.m.point_data.len()
+							             + render_model.m. cell_data.len();
 
 							render_model.dindex = (render_model.dindex + 1) % data_len;
 							render_model.comp = 0;
 
 							// Cycle through point data first, then go to
 							// cells if we're past the end of the points.
-							if render_model.dindex < model.point_data.len()
+							if render_model.dindex < render_model.m.point_data.len()
 							{
-								render_model.bind_point_data(model, display);
-								name = &model.point_data[render_model.dindex].name;
+								render_model.bind_point_data(display);
+								name = &render_model.m.point_data[render_model.dindex].name;
 							}
 							else
 							{
@@ -473,9 +473,9 @@ fn main_loop<T>
 								// render_model.get_name() fn to handle this
 								// index logic for both point and cell data
 
-								let cindex = render_model.dindex - model.point_data.len();
-								render_model.bind_cell_data(model, display);
-								name = &model.cell_data[cindex].name;
+								let cindex = render_model.dindex - render_model.m.point_data.len();
+								render_model.bind_cell_data(display);
+								name = &render_model.m.cell_data[cindex].name;
 							}
 
 							println!("Cycling data array");
@@ -501,7 +501,7 @@ fn main_loop<T>
 						{
 							println!("Cycling warp");
 							render_model.warp_index += 1;
-							render_model.warp(model, display);
+							render_model.warp(display);
 						}
 
 						_ => {}

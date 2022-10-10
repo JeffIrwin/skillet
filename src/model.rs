@@ -323,8 +323,8 @@ pub struct RenderModel
 	// The RenderModel struct is an interface layer between the Model and
 	// glium's GL array/buffer object bindings
 	//
-	// TODO: should this struct contain a ref to the Model (and facade?)?  That
-	// could eliminate some fn args
+	// TODO: should this struct contain a ref to the facade?  That could
+	// eliminate some fn args
 
 	pub vertices: glium::VertexBuffer<Vert  >,
 	pub normals : glium::VertexBuffer<Normal>,
@@ -344,6 +344,9 @@ pub struct RenderModel
 
 	// Model matrix
 	pub mat: [[f32; NM]; NM],
+
+	// Reference to parent Model
+	pub m: Box<Model>,
 }
 
 fn verts(m: &Model, enable_warp: bool, index: usize, factor: f32)
@@ -464,7 +467,7 @@ impl RenderModel
 {
 	//****************
 
-	pub fn new(m: &Model, facade: &dyn glium::backend::Facade) -> RenderModel
+	pub fn new(m: Box<Model>, facade: &dyn glium::backend::Facade) -> RenderModel
 	{
 		// Split scalar handling to a separate fn.  Mesh geometry will only be
 		// loaded once, but scalars are processed multiple times as the user
@@ -501,18 +504,21 @@ impl RenderModel
 			// identity unless I add an option for a user to move one model
 			// relative to others
 			mat: identity_matrix(),
+
+			m: m,
 		};
 
 		// If point data is empty, bind cell data instead.  If both are empty,
 		// panic.  Otherwise, main will crash at my target_draw() call which
 		// references the empty scalar
-		if m.point_data.len() > 0
+		if render_model.m.point_data.len() > 0
 		{
-			render_model.bind_point_data(&m, facade);
+			//render_model.bind_point_data(&render_model.m, facade);
+			render_model.bind_point_data(facade);
 		}
-		else if m.cell_data.len() > 0
+		else if render_model.m.cell_data.len() > 0
 		{
-			render_model.bind_cell_data(&m, facade);
+			render_model.bind_cell_data(facade);
 		}
 		else
 		{
@@ -525,7 +531,7 @@ impl RenderModel
 
 	//****************
 
-	pub fn warp(&mut self, m: &Model,
+	pub fn warp(&mut self,
 		facade: &dyn glium::backend::Facade)
 	{
 		// Warp vertex positions by vector point data.  Cell data cannot be
@@ -536,7 +542,7 @@ impl RenderModel
 		// as before.
 
 		//index += 1;
-		if self.warp_index >= m.point_data.len() + 1
+		if self.warp_index >= self.m.point_data.len() + 1
 		{
 			self.warp_index = 0;
 		}
@@ -545,21 +551,21 @@ impl RenderModel
 
 		// We can't just return early here, because we need to reset positions
 		// to their original values to undo the previous warp
-		let enable_warp = index < m.point_data.len();
+		let enable_warp = index < self.m.point_data.len();
 
 		if enable_warp
 		{
-			if m.point_data[index].num_comp != ND
+			if self.m.point_data[index].num_comp != ND
 			{
 				// Only vectors can warp.  TODO: auto cycle to next vector (don't
 				// infinite loop)
 				return;
 			}
 
-			//println!("Warping by \"{}\"", m.point_data[index].name);
+			//println!("Warping by \"{}\"", self.m.point_data[index].name);
 		}
 
-		let (verts, normals, edge_verts) = verts(&m, enable_warp,
+		let (verts, normals, edge_verts) = verts(&self.m, enable_warp,
 				index, self.warp_factor);
 
 		self.vertices   = glium::VertexBuffer::new(facade, &verts     ).unwrap();
@@ -569,31 +575,30 @@ impl RenderModel
 
 	//****************
 
-	pub fn bind_point_data(&mut self, m: &Model,
-		facade: &dyn glium::backend::Facade)
+	pub fn bind_point_data(&mut self, facade: &dyn glium::backend::Facade)
 	{
 		// Select point data array by index to bind for graphical display
 
 		let index = self.dindex;
 
 		// TODO: check index too
-		if self.comp >= m.point_data[index].num_comp
+		if self.comp >= self.m.point_data[index].num_comp
 		{
 			panic!("Component is out of bounds");
 		}
 
-		let tris = m.tris();
+		let tris = self.m.tris();
 		let mut scalar  = Vec::with_capacity(tris.len());
-		let step = m.point_data[index].num_comp;
+		let step = self.m.point_data[index].num_comp;
 
 		// Get min/max of scalar.  TODO: add a magnitude option for vectors (but
 		// not tensors).  An extra pass will be needed to calculate
-		let (smin, smax) = utils::get_bounds(&(m.point_data[index].data
+		let (smin, smax) = utils::get_bounds(&(self.m.point_data[index].data
 			.iter().skip(self.comp).step_by(step).copied().collect::<Vec<f32>>()));
 
 		for i in 0 .. tris.len()
 		{
-			let s = m.point_data[index].data[step * tris[i] as usize + self.comp];
+			let s = self.m.point_data[index].data[step * tris[i] as usize + self.comp];
 
 			scalar.push(Scalar{tex_coord:
 				((s - smin) / (smax - smin)) as f32 });
@@ -604,26 +609,25 @@ impl RenderModel
 
 	//****************
 
-	pub fn bind_cell_data(&mut self, m: &Model,
-		facade: &dyn glium::backend::Facade)
+	pub fn bind_cell_data(&mut self, facade: &dyn glium::backend::Facade)
 	{
 		// Select cell data array by index to bind for graphical display
 
-		let index = self.dindex - m.point_data.len();
+		let index = self.dindex - self.m.point_data.len();
 
 		// TODO: check index too
-		if self.comp >= m.cell_data[index].num_comp
+		if self.comp >= self.m.cell_data[index].num_comp
 		{
 			panic!("Component is out of bounds");
 		}
 
-		let tris = m.tris();
+		let tris = self.m.tris();
 		let mut scalar  = Vec::with_capacity(tris.len());
-		let step = m.cell_data[index].num_comp;
+		let step = self.m.cell_data[index].num_comp;
 
 		// Get min/max of scalar.  TODO: add a magnitude option for vectors (but
 		// not tensors).  An extra pass will be needed to calculate
-		let (smin, smax) = utils::get_bounds(&(m.cell_data[index].data
+		let (smin, smax) = utils::get_bounds(&(self.m.cell_data[index].data
 			.iter().skip(self.comp).step_by(step).copied().collect::<Vec<f32>>()));
 
 		// Cell index
@@ -635,7 +639,7 @@ impl RenderModel
 		// Number of duplicated verts in this cell (recall: verts are duplicated
 		// for each triangle they belong too, both for sharp shading display
 		// along edges, and here for per-cell scalar display)
-		let mut nvc = cell_tris(m.types[ic]).len();
+		let mut nvc = cell_tris(self.m.types[ic]).len();
 
 		for _i in 0 .. tris.len()
 		{
@@ -643,11 +647,11 @@ impl RenderModel
 			{
 				iv = 0;
 				ic += 1;
-				nvc = cell_tris(m.types[ic]).len();
+				nvc = cell_tris(self.m.types[ic]).len();
 			}
 			//println!("_i, ic, iv = {}, {}, {}", _i, ic, iv);
 
-			let s = m.cell_data[index].data[step * ic as usize + self.comp];
+			let s = self.m.cell_data[index].data[step * ic as usize + self.comp];
 
 			scalar.push(Scalar{tex_coord:
 				((s - smin) / (smax - smin)) as f32 });
