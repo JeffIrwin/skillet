@@ -230,7 +230,7 @@ fn main_loop<T>
 		event       : &glutin::event::Event<'_, T>,
 		control_flow: &mut glutin::event_loop::ControlFlow,
 		s           : &mut State,
-		render_model: &mut RenderModel,
+		rm          : &mut RenderModel,
 		display     : &glium::Display,
 	)
 {
@@ -403,8 +403,8 @@ fn main_loop<T>
 						event::VirtualKeyCode::W =>
 						{
 							//println!("Ctrl+W");
-							render_model.warp_factor -= warp_increment;
-							render_model.warp(display);
+							rm.warp_factor -= warp_increment;
+							rm.warp(display);
 						}
 						_ => {}
 					}
@@ -416,8 +416,8 @@ fn main_loop<T>
 						event::VirtualKeyCode::W =>
 						{
 							//println!("Shift+W");
-							render_model.warp_factor += warp_increment;
-							render_model.warp(display);
+							rm.warp_factor += warp_increment;
+							rm.warp(display);
 						}
 						_ => {}
 					}
@@ -431,51 +431,51 @@ fn main_loop<T>
 						event::VirtualKeyCode::C =>
 						{
 							let name;
-							if render_model.dindex < render_model.m.point_data.len()
+							if rm.dindex < rm.m.point_data.len()
 							{
-								render_model.comp = (render_model.comp + 1)
-									% render_model.m.point_data[render_model.dindex].num_comp;
-								render_model.bind_point_data(display);
-								name = &render_model.m.point_data[render_model.dindex].name;
+								rm.comp = (rm.comp + 1)
+									% rm.m.point_data[rm.dindex].num_comp;
+								rm.bind_point_data(display);
+								name = &rm.m.point_data[rm.dindex].name;
 							}
 							else
 							{
-								let cindex = render_model.dindex - render_model.m.point_data.len();
-								render_model.comp = (render_model.comp + 1)
-									% render_model.m.cell_data[cindex].num_comp;
-								render_model.bind_cell_data(display);
-								name = &render_model.m.cell_data[cindex].name;
+								let cindex = rm.dindex - rm.m.point_data.len();
+								rm.comp = (rm.comp + 1)
+									% rm.m.cell_data[cindex].num_comp;
+								rm.bind_cell_data(display);
+								name = &rm.m.cell_data[cindex].name;
 							}
 
 							println!("Cycling data comp");
 							println!("Data name = {}", name);
-							println!("Data comp = {}\n", render_model.comp);
+							println!("Data comp = {}\n", rm.comp);
 						}
 						event::VirtualKeyCode::D =>
 						{
 							let name;
-							let data_len = render_model.m.point_data.len()
-							             + render_model.m. cell_data.len();
+							let data_len = rm.m.point_data.len()
+							             + rm.m. cell_data.len();
 
-							render_model.dindex = (render_model.dindex + 1) % data_len;
-							render_model.comp = 0;
+							rm.dindex = (rm.dindex + 1) % data_len;
+							rm.comp = 0;
 
 							// Cycle through point data first, then go to
 							// cells if we're past the end of the points.
-							if render_model.dindex < render_model.m.point_data.len()
+							if rm.dindex < rm.m.point_data.len()
 							{
-								render_model.bind_point_data(display);
-								name = &render_model.m.point_data[render_model.dindex].name;
+								rm.bind_point_data(display);
+								name = &rm.m.point_data[rm.dindex].name;
 							}
 							else
 							{
 								// TODO: add a generic
-								// render_model.get_name() fn to handle this
+								// rm.get_name() fn to handle this
 								// index logic for both point and cell data
 
-								let cindex = render_model.dindex - render_model.m.point_data.len();
-								render_model.bind_cell_data(display);
-								name = &render_model.m.cell_data[cindex].name;
+								let cindex = rm.dindex - rm.m.point_data.len();
+								rm.bind_cell_data(display);
+								name = &rm.m.cell_data[cindex].name;
 							}
 
 							println!("Cycling data array");
@@ -483,9 +483,9 @@ fn main_loop<T>
 						}
 						event::VirtualKeyCode::E =>
 						{
-							render_model.edge_visibility = !render_model.edge_visibility;
+							rm.edge_visibility = !rm.edge_visibility;
 							println!("Toggling edge visibility {}",
-								render_model.edge_visibility);
+								rm.edge_visibility);
 						}
 						event::VirtualKeyCode::M =>
 						{
@@ -500,8 +500,8 @@ fn main_loop<T>
 						event::VirtualKeyCode::W =>
 						{
 							println!("Cycling warp");
-							render_model.warp_index += 1;
-							render_model.warp(display);
+							rm.warp_index += 1;
+							rm.warp(display);
 						}
 
 						_ => {}
@@ -555,7 +555,7 @@ fn main_loop<T>
 			perspective: perspective,
 			view : s.view ,
 			world: s.world,
-			model_mat: render_model.mat,
+			model_mat: rm.mat,
 			u_light: light,
 			tex: tex,
 			bg_tex: bg_tex,
@@ -608,17 +608,17 @@ fn main_loop<T>
 	// args.  I tried and failed to do so for the background.  Maybe
 	// encapsulate them in another struct (state?) and pass that instead?
 	target.draw((
-		&render_model.vertices,
-		&render_model.normals,
-		&render_model.scalar),
-		&render_model.indices,
+		&rm.vertices,
+		&rm.normals,
+		&rm.scalar),
+		&rm.indices,
 		&s.face_program, &uniforms, &params).unwrap();
 
-	if render_model.edge_visibility
+	if rm.edge_visibility
 	{
 		target.draw(
-			&render_model.edge_verts,
-			&render_model.edge_indices,
+			&rm.edge_verts,
+			&rm.edge_indices,
 			&s.edge_program, &uniforms, &params).unwrap();
 	}
 
