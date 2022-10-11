@@ -18,6 +18,8 @@ use crate::utils::*;
 pub mod app;
 pub mod background;
 
+use app::State;
+
 //****************
 // 3P(s)
 //****************
@@ -80,7 +82,7 @@ fn main()
 	let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
 	let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
-	let mut s = app::State::new(&display);
+	let mut s = State::new(&display);
 
 	//****************
 

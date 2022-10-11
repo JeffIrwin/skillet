@@ -61,6 +61,8 @@ pub struct State
 	pub edge_program: glium::Program,
 }
 
+//****************
+
 impl State
 {
 	pub fn new(display: &glium::Display) -> State
@@ -76,6 +78,10 @@ impl State
 			mmb: false,
 			rmb: false,
 
+			// TODO: if model or bounds are passed as args, we can set
+			// view/cen/eye correctly here instead of dummy 0 initialization.
+			// Add RenderModel Box member to state.
+
 			world: identity_matrix(),
 			view : identity_matrix(),
 
@@ -88,7 +94,6 @@ impl State
 			scale_cum: 1.0,
 
 			colormap: get_colormap(&mut cmi, &display),
-			//colormap: glium::texture::SrgbTexture1d::new(),
 			map_index: cmi,
 
 			// This initial value doesn't matter.  It will get set correctly
@@ -104,7 +109,7 @@ impl State
 	}
 }
 
-// View constants. TODO: define once, not here and in main
+// View constants
 pub const DIR: [f32; ND] = [0.0, 0.0, -1.0];
 pub const UP : [f32; ND] = [0.0, 1.0,  0.0];
 
