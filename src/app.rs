@@ -1,6 +1,7 @@
 
 //==============================================================================
 
+use std::io::Cursor;
 use std::ops::Deref;
 use std::rc::Rc;
 
@@ -21,7 +22,13 @@ use crate::background::Background;
 // 3P(s)
 //****************
 
-use glium::{glutin, glutin::event, Surface};
+use glium::
+{
+	glutin,
+	glutin::event,
+	glutin::event_loop::EventLoopWindowTarget,
+	Surface
+};
 
 //==============================================================================
 
@@ -157,6 +164,32 @@ impl State
 // View constants
 pub const DIR: [f32; ND] = [0.0, 0.0, -1.0];
 pub const UP : [f32; ND] = [0.0, 1.0,  0.0];
+
+//==============================================================================
+
+pub fn display<T>(event_loop: &EventLoopWindowTarget<T>) -> glium::Display
+{
+	// TODO: idiomatic use paths
+
+	// include_bytes!() statically includes the file relative to this source
+	// path at compile time
+	let icon = image::load(Cursor::new(&include_bytes!("../res/icon.png")),
+			image::ImageFormat::Png).unwrap().to_rgba8();
+	let winicon = Some(glutin::window::Icon::from_rgba(icon.to_vec(),
+			icon.dimensions().0, icon.dimensions().1).unwrap());
+
+	let wb = glutin::window::WindowBuilder::new()
+		.with_title(mev!())
+		.with_window_icon(winicon)
+		.with_maximized(true);
+		//.with_inner_size(glutin::dpi::LogicalSize::new(1960.0, 1390.0))
+		//.with_position(glutin::dpi::LogicalPosition::new(0, 0));
+		//// ^ this leaves room for an 80 char terminal on my main monitor
+
+	let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
+
+	glium::Display::new(wb, cb, event_loop).unwrap()
+}
 
 //==============================================================================
 
@@ -536,11 +569,11 @@ pub fn main_loop<T>
 	// Clearing the depth again here forces the background to the back
 	target.clear_depth(1.0);
 
-	// TODO: move this to a RenderModel method?  Either pass program,
-	// uniforms, and params as args or encapsulate them in RenderModel
-	// struct.  Actually it seems nearly impossible to pass uniforms as
-	// args.  I tried and failed to do so for the background.  Maybe
-	// encapsulate them in another struct (state?) and pass that instead?
+	// TODO: move this to a RenderModel method?  Either pass program, uniforms,
+	// and params as args or encapsulate them in RenderModel struct.  Actually
+	// it seems nearly impossible to pass uniforms as a single arg.  I tried and
+	// failed to do so for the background.  Maybe encapsulate them in another
+	// struct (state?) and pass that instead?
 	target.draw((
 		&s.rm.vertices,
 		&s.rm.normals,
