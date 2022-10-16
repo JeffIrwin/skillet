@@ -12,6 +12,7 @@ use crate::colormaps::*;
 use crate::consts::*;
 use crate::math::*;
 use crate::model::*;
+use crate::utils;
 
 // Not included in lib
 use crate::background::Background;
@@ -79,6 +80,41 @@ impl State
 	{
 		let mut cmi = 0;
 
+		// Get point xyz bounds
+		let (xmin, xmax) = utils::get_bounds(&(rm.m.points.iter().skip(0)
+				.step_by(ND).copied().collect::<Vec<f32>>()));
+
+		let (ymin, ymax) = utils::get_bounds(&(rm.m.points.iter().skip(1)
+				.step_by(ND).copied().collect::<Vec<f32>>()));
+
+		let (zmin, zmax) = utils::get_bounds(&(rm.m.points.iter().skip(2)
+				.step_by(ND).copied().collect::<Vec<f32>>()));
+
+		let xc = 0.5 * (xmin + xmax);
+		let yc = 0.5 * (ymin + ymax);
+		let zc = 0.5 * (zmin + zmax);
+
+		println!("x in [{}, {}]", utils::ff32(xmin), utils::ff32(xmax));
+		println!("y in [{}, {}]", utils::ff32(ymin), utils::ff32(ymax));
+		println!("z in [{}, {}]", utils::ff32(zmin), utils::ff32(zmax));
+		println!();
+
+		let mut cen = [xc, yc, zc];
+
+		let diam = norm(&sub(&[xmax, ymax, zmax], &[xmin, ymin, zmin]));
+
+		// View must be initialized like this, because subsequent rotations are
+		// performed about its fixed coordinate system.  Set eye from model bounds.
+		// You could do some trig here on fov to guarantee whole model is in view,
+		// but it's pretty close as is except for possible extreme cases
+
+		let eye = [0.0, 0.0, zmax + diam];
+
+		// Initial pan to center
+		let mut world = identity_matrix();
+		world = translate_matrix(&world, &neg(&cen));
+		cen = [0.0; ND];
+
 		State
 		{
 			ctrl : false,
@@ -88,15 +124,11 @@ impl State
 			mmb: false,
 			rmb: false,
 
-			// TODO: if model or bounds are passed as args, we can set
-			// view/cen/eye correctly here instead of dummy 0 initialization.
-			// Add RenderModel Box member to state.
+			world: world,
+			view : view_matrix(&eye, &DIR, &UP),
 
-			world: identity_matrix(),
-			view : identity_matrix(),
-
-			cen: [0.0; ND],
-			eye: [0.0; ND],
+			cen: cen,
+			eye: eye,
 
 			x0: 0.0,
 			y0: 0.0,
@@ -109,7 +141,7 @@ impl State
 			// This initial value doesn't matter.  It will get set correctly
 			// after the first frame
 			display_diam: 1920.0,
-			diam: 0.0,
+			diam: diam,
 
 			bg: Background::new(rm.facade.deref()),
 

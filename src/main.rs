@@ -11,9 +11,7 @@ use std::rc::Rc;
 // This crate, included in lib
 use skillet::*;
 use crate::consts::*;
-use crate::math::*;
 use crate::model::*;
-use crate::utils::*;
 
 // Not included in lib
 pub mod app;
@@ -90,45 +88,9 @@ fn main()
 	// Display :(
 	let display = Rc::new(glium::Display::new(wb, cb, &event_loop).unwrap());
 
-	// Get point xyz bounds.  TODO: this could be moved into State construction
-
-	let (xmin, xmax) = get_bounds(&(model.points.iter().skip(0)
-			.step_by(ND).copied().collect::<Vec<f32>>()));
-
-	let (ymin, ymax) = get_bounds(&(model.points.iter().skip(1)
-			.step_by(ND).copied().collect::<Vec<f32>>()));
-
-	let (zmin, zmax) = get_bounds(&(model.points.iter().skip(2)
-			.step_by(ND).copied().collect::<Vec<f32>>()));
-
-	let xc = 0.5 * (xmin + xmax);
-	let yc = 0.5 * (ymin + ymax);
-	let zc = 0.5 * (zmin + zmax);
-
 	let render_model = Box::new(RenderModel::new(model, display.clone()));
 
 	let mut s = State::new(render_model, display);
-
-	s.cen = [xc, yc, zc];
-
-	s.diam = norm(&sub(&[xmax, ymax, zmax], &[xmin, ymin, zmin]));
-
-	println!("x in [{}, {}]", ff32(xmin), ff32(xmax));
-	println!("y in [{}, {}]", ff32(ymin), ff32(ymax));
-	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
-	println!();
-
-	// View must be initialized like this, because subsequent rotations are
-	// performed about its fixed coordinate system.  Set eye from model bounds.
-	// You could do some trig here on fov to guarantee whole model is in view,
-	// but it's pretty close as is except for possible extreme cases
-
-	s.eye = [0.0, 0.0, zmax + s.diam];
-	s.view = view_matrix(&s.eye, &app::DIR, &app::UP);
-
-	// Initial pan to center
-	s.world = translate_matrix(&s.world, &neg(&s.cen));
-	s.cen = [0.0; ND];
 
 	println!("{}:  Starting main loop", ME);
 	println!();
