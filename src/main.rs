@@ -82,10 +82,6 @@ fn main()
 	let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
 	let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
-	let mut s = State::new(&display);
-
-	//****************
-
 	// Get point xyz bounds.  TODO: this could be moved into State construction
 
 	let (xmin, xmax) = get_bounds(&(model.points.iter().skip(0)
@@ -101,6 +97,10 @@ fn main()
 	let yc = 0.5 * (ymin + ymax);
 	let zc = 0.5 * (zmin + zmax);
 
+	let render_model = Box::new(RenderModel::new(model, &display));
+
+	let mut s = State::new(render_model, &display);
+
 	s.cen = [xc, yc, zc];
 
 	s.diam = norm(&sub(&[xmax, ymax, zmax], &[xmin, ymin, zmin]));
@@ -109,8 +109,6 @@ fn main()
 	println!("y in [{}, {}]", ff32(ymin), ff32(ymax));
 	println!("z in [{}, {}]", ff32(zmin), ff32(zmax));
 	println!();
-
-	let mut render_model = RenderModel::new(model, &display);
 
 	// View must be initialized like this, because subsequent rotations are
 	// performed about its fixed coordinate system.  Set eye from model bounds.
@@ -129,7 +127,7 @@ fn main()
 
 	event_loop.run(move |event, _, control_flow|
 	{
-		app::main_loop(&event, control_flow, &mut s, &mut render_model, &display);
+		app::main_loop(&event, control_flow, &mut s, &display);
 	});
 }
 

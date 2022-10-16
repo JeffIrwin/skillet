@@ -59,13 +59,16 @@ pub struct State
 
 	pub face_program: glium::Program,
 	pub edge_program: glium::Program,
+
+	// Reference to RenderModel
+	pub rm: Box<RenderModel>,
 }
 
 //****************
 
 impl State
 {
-	pub fn new(display: &glium::Display) -> State
+	pub fn new(rm: Box<RenderModel>, display: &glium::Display) -> State
 	{
 		let mut cmi = 0;
 
@@ -105,6 +108,8 @@ impl State
 
 			face_program: shaders::face(display),
 			edge_program: shaders::edge(display),
+
+			rm: rm,
 		}
 	}
 }
@@ -120,7 +125,6 @@ pub fn main_loop<T>
 		event       : &glutin::event::Event<'_, T>,
 		control_flow: &mut glutin::event_loop::ControlFlow,
 		s           : &mut State,
-		rm          : &mut RenderModel,
 		display     : &glium::Display,
 	)
 {
@@ -293,8 +297,8 @@ pub fn main_loop<T>
 						event::VirtualKeyCode::W =>
 						{
 							//println!("Ctrl+W");
-							rm.warp_factor -= warp_increment;
-							rm.warp(display);
+							s.rm.warp_factor -= warp_increment;
+							s.rm.warp(display);
 						}
 						_ => {}
 					}
@@ -306,8 +310,8 @@ pub fn main_loop<T>
 						event::VirtualKeyCode::W =>
 						{
 							//println!("Shift+W");
-							rm.warp_factor += warp_increment;
-							rm.warp(display);
+							s.rm.warp_factor += warp_increment;
+							s.rm.warp(display);
 						}
 						_ => {}
 					}
@@ -321,51 +325,51 @@ pub fn main_loop<T>
 						event::VirtualKeyCode::C =>
 						{
 							let name;
-							if rm.dindex < rm.m.point_data.len()
+							if s.rm.dindex < s.rm.m.point_data.len()
 							{
-								rm.comp = (rm.comp + 1)
-									% rm.m.point_data[rm.dindex].num_comp;
-								rm.bind_point_data(display);
-								name = &rm.m.point_data[rm.dindex].name;
+								s.rm.comp = (s.rm.comp + 1)
+									% s.rm.m.point_data[s.rm.dindex].num_comp;
+								s.rm.bind_point_data(display);
+								name = &s.rm.m.point_data[s.rm.dindex].name;
 							}
 							else
 							{
-								let cindex = rm.dindex - rm.m.point_data.len();
-								rm.comp = (rm.comp + 1)
-									% rm.m.cell_data[cindex].num_comp;
-								rm.bind_cell_data(display);
-								name = &rm.m.cell_data[cindex].name;
+								let cindex = s.rm.dindex - s.rm.m.point_data.len();
+								s.rm.comp = (s.rm.comp + 1)
+									% s.rm.m.cell_data[cindex].num_comp;
+								s.rm.bind_cell_data(display);
+								name = &s.rm.m.cell_data[cindex].name;
 							}
 
 							println!("Cycling data comp");
 							println!("Data name = {}", name);
-							println!("Data comp = {}\n", rm.comp);
+							println!("Data comp = {}\n", s.rm.comp);
 						}
 						event::VirtualKeyCode::D =>
 						{
 							let name;
-							let data_len = rm.m.point_data.len()
-							             + rm.m. cell_data.len();
+							let data_len = s.rm.m.point_data.len()
+							             + s.rm.m. cell_data.len();
 
-							rm.dindex = (rm.dindex + 1) % data_len;
-							rm.comp = 0;
+							s.rm.dindex = (s.rm.dindex + 1) % data_len;
+							s.rm.comp = 0;
 
 							// Cycle through point data first, then go to
 							// cells if we're past the end of the points.
-							if rm.dindex < rm.m.point_data.len()
+							if s.rm.dindex < s.rm.m.point_data.len()
 							{
-								rm.bind_point_data(display);
-								name = &rm.m.point_data[rm.dindex].name;
+								s.rm.bind_point_data(display);
+								name = &s.rm.m.point_data[s.rm.dindex].name;
 							}
 							else
 							{
 								// TODO: add a generic
-								// rm.get_name() fn to handle this
+								// s.rm.get_name() fn to handle this
 								// index logic for both point and cell data
 
-								let cindex = rm.dindex - rm.m.point_data.len();
-								rm.bind_cell_data(display);
-								name = &rm.m.cell_data[cindex].name;
+								let cindex = s.rm.dindex - s.rm.m.point_data.len();
+								s.rm.bind_cell_data(display);
+								name = &s.rm.m.cell_data[cindex].name;
 							}
 
 							println!("Cycling data array");
@@ -373,9 +377,9 @@ pub fn main_loop<T>
 						}
 						event::VirtualKeyCode::E =>
 						{
-							rm.edge_visibility = !rm.edge_visibility;
+							s.rm.edge_visibility = !s.rm.edge_visibility;
 							println!("Toggling edge visibility {}",
-								rm.edge_visibility);
+								s.rm.edge_visibility);
 						}
 						event::VirtualKeyCode::M =>
 						{
@@ -390,8 +394,8 @@ pub fn main_loop<T>
 						event::VirtualKeyCode::W =>
 						{
 							println!("Cycling warp");
-							rm.warp_index += 1;
-							rm.warp(display);
+							s.rm.warp_index += 1;
+							s.rm.warp(display);
 						}
 
 						_ => {}
@@ -445,7 +449,7 @@ pub fn main_loop<T>
 			perspective: perspective,
 			view : s.view ,
 			world: s.world,
-			model_mat: rm.mat,
+			model_mat: s.rm.mat,
 			u_light: light,
 			tex: tex,
 			bg_tex: bg_tex,
@@ -498,17 +502,17 @@ pub fn main_loop<T>
 	// args.  I tried and failed to do so for the background.  Maybe
 	// encapsulate them in another struct (state?) and pass that instead?
 	target.draw((
-		&rm.vertices,
-		&rm.normals,
-		&rm.scalar),
-		&rm.indices,
+		&s.rm.vertices,
+		&s.rm.normals,
+		&s.rm.scalar),
+		&s.rm.indices,
 		&s.face_program, &uniforms, &params).unwrap();
 
-	if rm.edge_visibility
+	if s.rm.edge_visibility
 	{
 		target.draw(
-			&rm.edge_verts,
-			&rm.edge_indices,
+			&s.rm.edge_verts,
+			&s.rm.edge_indices,
 			&s.edge_program, &uniforms, &params).unwrap();
 	}
 
