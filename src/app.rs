@@ -1,6 +1,11 @@
 
 //==============================================================================
 
+use std::ops::Deref;
+use std::rc::Rc;
+
+//****************
+
 // This crate, included in lib
 use skillet::*;
 use crate::colormaps::*;
@@ -62,13 +67,15 @@ pub struct State
 
 	// Reference to RenderModel
 	pub rm: Box<RenderModel>,
+
+	pub display: Rc<glium::Display>,
 }
 
 //****************
 
 impl State
 {
-	pub fn new(rm: Box<RenderModel>, display: &glium::Display) -> State
+	pub fn new(rm: Box<RenderModel>, display: Rc<glium::Display>) -> State
 	{
 		let mut cmi = 0;
 
@@ -104,12 +111,13 @@ impl State
 			display_diam: 1920.0,
 			diam: 0.0,
 
-			bg: Background::new(display),
+			bg: Background::new(rm.facade.deref()),
 
-			face_program: shaders::face(display),
-			edge_program: shaders::edge(display),
+			face_program: shaders::face(rm.facade.deref()),
+			edge_program: shaders::edge(rm.facade.deref()),
 
 			rm: rm,
+			display: display,
 		}
 	}
 }
@@ -122,10 +130,9 @@ pub const UP : [f32; ND] = [0.0, 1.0,  0.0];
 
 pub fn main_loop<T>
 	(
-		event       : &glutin::event::Event<'_, T>,
+		event       : &    glutin::event::Event<'_, T>,
 		control_flow: &mut glutin::event_loop::ControlFlow,
 		s           : &mut State,
-		display     : &glium::Display,
 	)
 {
 	let next_frame_time = std::time::Instant::now() +
@@ -298,7 +305,7 @@ pub fn main_loop<T>
 						{
 							//println!("Ctrl+W");
 							s.rm.warp_factor -= warp_increment;
-							s.rm.warp(display);
+							s.rm.warp();
 						}
 						_ => {}
 					}
@@ -311,7 +318,7 @@ pub fn main_loop<T>
 						{
 							//println!("Shift+W");
 							s.rm.warp_factor += warp_increment;
-							s.rm.warp(display);
+							s.rm.warp();
 						}
 						_ => {}
 					}
@@ -329,7 +336,7 @@ pub fn main_loop<T>
 							{
 								s.rm.comp = (s.rm.comp + 1)
 									% s.rm.m.point_data[s.rm.dindex].num_comp;
-								s.rm.bind_point_data(display);
+								s.rm.bind_point_data();
 								name = &s.rm.m.point_data[s.rm.dindex].name;
 							}
 							else
@@ -337,7 +344,7 @@ pub fn main_loop<T>
 								let cindex = s.rm.dindex - s.rm.m.point_data.len();
 								s.rm.comp = (s.rm.comp + 1)
 									% s.rm.m.cell_data[cindex].num_comp;
-								s.rm.bind_cell_data(display);
+								s.rm.bind_cell_data();
 								name = &s.rm.m.cell_data[cindex].name;
 							}
 
@@ -358,7 +365,7 @@ pub fn main_loop<T>
 							// cells if we're past the end of the points.
 							if s.rm.dindex < s.rm.m.point_data.len()
 							{
-								s.rm.bind_point_data(display);
+								s.rm.bind_point_data();
 								name = &s.rm.m.point_data[s.rm.dindex].name;
 							}
 							else
@@ -368,7 +375,7 @@ pub fn main_loop<T>
 								// index logic for both point and cell data
 
 								let cindex = s.rm.dindex - s.rm.m.point_data.len();
-								s.rm.bind_cell_data(display);
+								s.rm.bind_cell_data();
 								name = &s.rm.m.cell_data[cindex].name;
 							}
 
@@ -389,13 +396,14 @@ pub fn main_loop<T>
 							// get_colormap().  Maybe I should make
 							// bind_*_data() work like that too.
 							s.map_index += 1;
-							s.colormap = get_colormap(&mut s.map_index, display);
+							//s.colormap = get_colormap(&mut s.map_index, s.rm.facade);
+							s.colormap = get_colormap(&mut s.map_index, &s.display);
 						}
 						event::VirtualKeyCode::W =>
 						{
 							println!("Cycling warp");
 							s.rm.warp_index += 1;
-							s.rm.warp(display);
+							s.rm.warp();
 						}
 
 						_ => {}
@@ -417,7 +425,7 @@ pub fn main_loop<T>
 	// Apparently the rendering below must be in the same fn as the event
 	// handling above, otherwise perf takes a massive hit
 
-	let mut target = display.draw();
+	let mut target = s.display.draw();
 
 	s.display_diam = tnorm(target.get_dimensions());
 

@@ -4,6 +4,7 @@
 // Standard
 use std::env;
 use std::io::Cursor;
+use std::rc::Rc;
 
 //****************
 
@@ -56,6 +57,8 @@ fn main()
 
 	let file_path = PathBuf::from(args[1].clone());
 
+	// Ownership of the Model is transferred to the RenderModel later, so it's
+	// in a Box
 	let model = Box::new(import(file_path));
 
 	// TODO: refactor to window init fn
@@ -80,7 +83,12 @@ fn main()
 		//// ^ this leaves room for an 80 char terminal on my main monitor
 
 	let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
-	let display = glium::Display::new(wb, cb, &event_loop).unwrap();
+
+	// Ownership of the Display is shared between the RenderModel and the State,
+	// so it's in an Rc.  It can't be singly-owned as far as I can tell, because
+	// RenderModel uses it cast as a facade, while State uses it directly as
+	// Display :(
+	let display = Rc::new(glium::Display::new(wb, cb, &event_loop).unwrap());
 
 	// Get point xyz bounds.  TODO: this could be moved into State construction
 
@@ -97,9 +105,9 @@ fn main()
 	let yc = 0.5 * (ymin + ymax);
 	let zc = 0.5 * (zmin + zmax);
 
-	let render_model = Box::new(RenderModel::new(model, &display));
+	let render_model = Box::new(RenderModel::new(model, display.clone()));
 
-	let mut s = State::new(render_model, &display);
+	let mut s = State::new(render_model, display);
 
 	s.cen = [xc, yc, zc];
 
@@ -127,7 +135,7 @@ fn main()
 
 	event_loop.run(move |event, _, control_flow|
 	{
-		app::main_loop(&event, control_flow, &mut s, &display);
+		app::main_loop(&event, control_flow, &mut s);
 	});
 }
 

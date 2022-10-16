@@ -1,6 +1,11 @@
 
 //****************
 
+use std::ops::Deref;
+use std::rc::Rc;
+
+//****************
+
 use crate::consts::*;
 use crate::math::*;
 use crate::utils;
@@ -345,8 +350,9 @@ pub struct RenderModel
 	// Model matrix
 	pub mat: [[f32; NM]; NM],
 
-	// Reference to parent Model
-	pub m: Box<Model>,
+	// References to parent Model and facade/display
+	pub m     : Box<Model>,
+	pub facade: Rc<dyn glium::backend::Facade>,
 }
 
 fn verts(m: &Model, enable_warp: bool, index: usize, factor: f32)
@@ -467,7 +473,7 @@ impl RenderModel
 {
 	//****************
 
-	pub fn new(m: Box<Model>, facade: &dyn glium::backend::Facade) -> RenderModel
+	pub fn new(m: Box<Model>, facade: Rc<dyn glium::backend::Facade>) -> RenderModel
 	{
 		// Split scalar handling to a separate fn.  Mesh geometry will only be
 		// loaded once, but scalars are processed multiple times as the user
@@ -479,15 +485,16 @@ impl RenderModel
 		let scalar  = Vec::new();
 		let mut render_model = RenderModel
 		{
-			vertices: glium::VertexBuffer::new(facade, &verts  ).unwrap(),
-			normals : glium::VertexBuffer::new(facade, &normals).unwrap(),
-			scalar  : glium::VertexBuffer::new(facade, &scalar ).unwrap(),
+			// "x.deref()" is equivalent to "&*x"
+			vertices: glium::VertexBuffer::new(facade.deref(), &verts  ).unwrap(),
+			normals : glium::VertexBuffer::new(facade.deref(), &normals).unwrap(),
+			scalar  : glium::VertexBuffer::new(facade.deref(), &scalar ).unwrap(),
 
 			indices : glium::index::NoIndices(
 				glium::index::PrimitiveType::TrianglesList),
 
 			edge_visibility: false,
-			edge_verts  : glium::VertexBuffer::new(facade, &edge_verts).unwrap(),
+			edge_verts  : glium::VertexBuffer::new(facade.deref(), &edge_verts).unwrap(),
 			edge_indices: glium::index::NoIndices(
 				glium::index::PrimitiveType::LinesList),
 
@@ -506,6 +513,7 @@ impl RenderModel
 			mat: identity_matrix(),
 
 			m: m,
+			facade: facade,
 		};
 
 		// If point data is empty, bind cell data instead.  If both are empty,
@@ -513,12 +521,11 @@ impl RenderModel
 		// references the empty scalar
 		if render_model.m.point_data.len() > 0
 		{
-			//render_model.bind_point_data(&render_model.m, facade);
-			render_model.bind_point_data(facade);
+			render_model.bind_point_data();
 		}
 		else if render_model.m.cell_data.len() > 0
 		{
-			render_model.bind_cell_data(facade);
+			render_model.bind_cell_data();
 		}
 		else
 		{
@@ -531,8 +538,7 @@ impl RenderModel
 
 	//****************
 
-	pub fn warp(&mut self,
-		facade: &dyn glium::backend::Facade)
+	pub fn warp(&mut self)
 	{
 		// Warp vertex positions by vector point data.  Cell data cannot be
 		// applied as a warp.
@@ -568,14 +574,14 @@ impl RenderModel
 		let (verts, normals, edge_verts) = verts(&self.m, enable_warp,
 				index, self.warp_factor);
 
-		self.vertices   = glium::VertexBuffer::new(facade, &verts     ).unwrap();
-		self.normals    = glium::VertexBuffer::new(facade, &normals   ).unwrap();
-		self.edge_verts = glium::VertexBuffer::new(facade, &edge_verts).unwrap();
+		self.vertices   = glium::VertexBuffer::new(self.facade.deref(), &verts     ).unwrap();
+		self.normals    = glium::VertexBuffer::new(self.facade.deref(), &normals   ).unwrap();
+		self.edge_verts = glium::VertexBuffer::new(self.facade.deref(), &edge_verts).unwrap();
 	}
 
 	//****************
 
-	pub fn bind_point_data(&mut self, facade: &dyn glium::backend::Facade)
+	pub fn bind_point_data(&mut self)
 	{
 		// Select point data array by index to bind for graphical display
 
@@ -604,12 +610,12 @@ impl RenderModel
 				((s - smin) / (smax - smin)) as f32 });
 		}
 
-		self.scalar = glium::VertexBuffer::new(facade, &scalar).unwrap();
+		self.scalar = glium::VertexBuffer::new(self.facade.deref(), &scalar).unwrap();
 	}
 
 	//****************
 
-	pub fn bind_cell_data(&mut self, facade: &dyn glium::backend::Facade)
+	pub fn bind_cell_data(&mut self)
 	{
 		// Select cell data array by index to bind for graphical display
 
@@ -659,7 +665,7 @@ impl RenderModel
 			iv += 1;
 		}
 
-		self.scalar = glium::VertexBuffer::new(facade, &scalar).unwrap();
+		self.scalar = glium::VertexBuffer::new(self.facade.deref(), &scalar).unwrap();
 	}
 
 	//****************
