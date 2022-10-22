@@ -122,6 +122,8 @@ impl State
 		world = translate_matrix(&world, &neg(&cen));
 		cen = [0.0; ND];
 
+		//let system = glium_text::TextSystem::new(display.deref());
+
 		State
 		{
 			ctrl : false,
@@ -589,6 +591,45 @@ pub fn main_loop<T>
 			&s.edge_program, &uniforms, &params).unwrap();
 	}
 
+	// Draw legend text
+
+	// The `TextSystem` contains the shaders and elements used for text display.
+	//let system = glium_text::TextSystem::new(&s.display.clone());
+	//let system = glium_text::TextSystem::new(&s.rm.facade.clone());
+	
+	//let facade: FacadeRc = s.rm.facade.clone();
+
+	//let facade = FacadeRc::new(s.rm.facade);
+	//let facade = FacadeRc::new(s.rm.facade.clone());
+	//let system = glium_text::TextSystem::new(&facade);
+	//let system = glium_text::TextSystem::new(&facade as &dyn glium::backend::Facade);
+
+	//let system = glium_text::TextSystem::new(&s.rm.facade);
+	//let system = glium_text::TextSystem::new(&s.display);
+
+	//let facade = s.rm.facade.clone();
+	////let facade = FacadeRc(s.rm.facade.clone());
+	//let system = glium_text::TextSystem::new(&(facade as glium::backend::Facade));
+
+	//let display = DisplayRc(s.display.clone());
+	//let system = glium_text::TextSystem::new(&(display as glium::Display));
+
+	//// Creating a `FontTexture`, which a regular `Texture` which contains the font.
+	//// Note that loading the systems fonts is not covered by this library.
+	////
+	//// TODO: include_bytes() or include_str()
+	//let font = glium_text::FontTexture::new(&s.display, std::fs::File::open(&std::path::Path::new("./res/font.ttf")).unwrap(), 24).unwrap();
+
+	//// Creating a `TextDisplay` which contains the elements required to draw a specific sentence.
+	//let text = glium_text::TextDisplay::new(&system, &font, "Hello world!");
+
+	//// Finally, drawing the text is done like this:
+	//let matrix = [[1.0, 0.0, 0.0, 0.0],
+	//              [0.0, 1.0, 0.0, 0.0],
+	//              [0.0, 0.0, 1.0, 0.0],
+	//              [0.0, 0.0, 0.0, 1.0]];
+	//glium_text::draw(&text, &system, &mut s.display.draw(), matrix, (1.0, 1.0, 0.0, 1.0));
+
 	// TODO: draw axes, colormap legend
 
 	// Swap buffers
@@ -597,6 +638,67 @@ pub fn main_loop<T>
 	// TODO: take screenshot and compare for testing (just don't do it
 	// everytime in the main loop.  maybe do that in a separate test/example)
 }
+
+//impl<T: glium::backend::Facade> glium::backend::Facade for &T {}
+
+//impl<'a> glium::backend::Facade<'a> for Rc<dyn glium::backend::Facade<'a>> { } 
+//impl glium::backend::Facade for Rc<dyn glium::backend::Facade> { } 
+
+//struct FacadeRc(Rc<dyn glium::backend::Facade>);
+//
+//impl FacadeRc
+//{
+//	fn new(facade: Rc<dyn glium::backend::Facade>) -> FacadeRc
+//	{
+//		FacadeRc(facade)
+//	}
+//}
+//
+//impl glium::backend::Facade for FacadeRc
+//{
+//	fn get_context(&self) -> &Rc<glium::backend::Context> { todo!() }
+//}
+
+//************
+
+struct DisplayRc(Rc<glium::Display>);
+
+impl DisplayRc
+{
+	//fn new(facade: Rc<dyn glium::backend::Facade>) -> FacadeRc
+	//{
+	//	FacadeRc(facade)
+	//}
+}
+
+//impl glium::backend::Facade for Rc<glium::Display>
+
+impl glium::backend::Facade for DisplayRc
+{
+	fn get_context(&self) -> &Rc<glium::backend::Context>
+	{
+		todo!()
+		//self.get_context()
+	}
+}
+
+//impl<'a> glium::backend::Facade for &'a DisplayRc
+//{
+//	fn get_context(&self) -> &Rc<glium::backend::Context>
+//	{
+//		//todo!()
+//		self.get_context()
+//	}
+//}
+//
+//impl<'a> glium::backend::Facade for &'a mut DisplayRc
+//{
+//	fn get_context(&self) -> &Rc<glium::backend::Context>
+//	{
+//		//todo!()
+//		self.get_context()
+//	}
+//}
 
 //==============================================================================
 

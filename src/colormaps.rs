@@ -46,7 +46,18 @@ pub fn get_colormap(index: &mut usize, display: &glium::Display) -> glium::textu
 		cmap.push(cmax as u8);
 	}
 
-	let image = glium::texture::RawImage1d::from_raw_rgba(cmap);
+	//let image = glium::texture::RawImage1d::from_raw_rgba(cmap);
+
+	// For glium 0.21.0
+	use std::borrow::Cow;
+	let width = (cmap.len() / 4) as u32;
+	let image = glium::texture::RawImage1d
+	{
+		data: Cow::from(cmap),
+		width: width,
+		format: glium::texture::ClientFormat::U8U8U8U8,
+	};
+
 	glium::texture::SrgbTexture1d::new(display, image).unwrap()
 }
 
