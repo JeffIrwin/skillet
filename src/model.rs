@@ -186,8 +186,7 @@ pub fn cell_edges(t: Type) -> Vec<usize>
 
 pub struct Model
 {
-	// The Model struct contains the geometry and its associated point data and
-	// cell data
+	// The Model struct contains the geometry and its associated point data
 	//
 	// For now, this is just a wrapper for the vtkio vtk struct, although it
 	// could be generalized for other file formats
@@ -328,6 +327,9 @@ pub struct RenderModel
 {
 	// The RenderModel struct is an interface layer between the Model and
 	// glium's GL array/buffer object bindings
+	//
+	// TODO: should this struct contain a ref to the facade?  That could
+	// eliminate some fn args
 
 	pub vertices: glium::VertexBuffer<Vert  >,
 	pub normals : glium::VertexBuffer<Normal>,
@@ -476,8 +478,6 @@ impl RenderModel
 		// Split scalar handling to a separate fn.  Mesh geometry will only be
 		// loaded once, but scalars are processed multiple times as the user
 		// cycles through data to display
-
-		//let system = glium_text::TextSystem::new(facade.deref());
 
 		let enable_warp = false;
 		let (verts, normals, edge_verts) = verts(&m, enable_warp, 0, 0.0);

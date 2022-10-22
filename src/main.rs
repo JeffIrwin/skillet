@@ -69,11 +69,7 @@ fn main()
 
 	let render_model = Box::new(RenderModel::new(model, display.clone()));
 
-	let mut state = State::new(render_model, display.clone());
-
-	////let system = glium_text::TextSystem::new(&*display);
-	////let system = glium_text::TextSystem::new::<dyn glium::backend::Facade>(&*display.borrow());
-	//let system = glium_text::TextSystem::new::<glium::Display>(&*display.borrow());
+	let mut state = State::new(render_model, display);
 
 	println!("{}:  Starting main loop", ME);
 	println!();
